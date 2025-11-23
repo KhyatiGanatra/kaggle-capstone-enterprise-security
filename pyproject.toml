@@ -1,0 +1,14 @@
+[project]
+name = "kaggle-capstone-enterprise-security"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "db-dtypes>=1.4.4",
+    "google-auth>=2.22.0",
+    "google-cloud-aiplatform>=1.38.0",
+    "google-cloud-bigquery>=3.15.0",
+    "google-generativeai>=0.8.5",
+    "pandas>=2.3.3",
+    "python-dotenv>=1.2.1",
+]
