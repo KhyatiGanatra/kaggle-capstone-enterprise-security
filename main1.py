@@ -13,7 +13,9 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
-# --- FIX 1: Correct Import for Agent Development Kit ---
+from dotenv import load_dotenv
+load_dotenv()
+
 try:
     from google import adk
 except ImportError:
@@ -21,7 +23,6 @@ except ImportError:
     print("Please install it using: pip install google-adk")
     sys.exit(1)
 
-# --- FIX 2: Robust Cloud Imports ---
 try:
     from google.cloud import bigquery, storage, aiplatform
     from google.api_core import exceptions as google_exceptions
