@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY shared/ ./shared/
+COPY agents/root_agent.py ./agents/
+
+# Create __init__.py files if needed
+RUN touch shared/__init__.py && touch agents/__init__.py
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+
+# Expose port
+EXPOSE 8080
+
+# Run the agent
+CMD ["python", "-m", "agents.root_agent"]
+
+
