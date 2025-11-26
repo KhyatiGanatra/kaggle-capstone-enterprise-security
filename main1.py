@@ -13,8 +13,9 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
+# Load environment variables from .env file
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
 try:
     from google import adk
