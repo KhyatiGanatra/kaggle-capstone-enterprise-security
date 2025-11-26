@@ -4,11 +4,14 @@ This document explains how to run the test suite for the Multi-Agent Security Sy
 
 ## Prerequisites
 
-1. Install test dependencies:
+1. Install UV (if not already installed):
 ```bash
-pip install -r requirements.txt
-# Or install just testing packages:
-pip install pytest pytest-cov pytest-mock
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+2. Install dependencies:
+```bash
+uv sync
 ```
 
 ## Running Tests
@@ -139,7 +142,7 @@ pytest tests/
 
 Install all dependencies:
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### Mock/Stub Issues

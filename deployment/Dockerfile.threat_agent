@@ -2,9 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install UV
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 # Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock* ./
+RUN uv sync --frozen --no-dev
+
+# Make uv-installed packages available
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application code
 COPY shared/ ./shared/

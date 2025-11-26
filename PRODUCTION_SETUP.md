@@ -83,7 +83,8 @@ All agents communicate via **A2A (Agent-to-Agent) protocol over HTTPS** and are 
 ### 5. Documentation
 
 - `README.md` - Comprehensive production documentation
-- `requirements.txt` - Python dependencies
+- `pyproject.toml` - Python dependencies (UV package manager)
+- `requirements.txt` - Python dependencies (kept for backwards compatibility)
 - `.gitignore` - Git ignore rules
 
 ## Key Features

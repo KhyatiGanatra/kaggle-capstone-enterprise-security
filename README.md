@@ -69,6 +69,7 @@ A production-ready, distributed multi-agent security system built with Google AD
 ## Prerequisites
 
 - Python 3.9+
+- UV package manager (fast Python package manager)
 - Google Cloud Project with:
   - Vertex AI API enabled
   - BigQuery API enabled
@@ -84,18 +85,25 @@ git clone <repository-url>
 cd kaggle-capstone-entr-sec
 ```
 
-2. Install dependencies:
+2. Install UV (if not already installed):
 ```bash
-pip install -r requirements.txt
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-3. Set up Google Cloud authentication:
+3. Install dependencies:
+```bash
+uv sync
+```
+
+This will create a virtual environment (`.venv`) and install all dependencies from `pyproject.toml`.
+
+4. Set up Google Cloud authentication:
 ```bash
 gcloud auth application-default login
 gcloud config set project YOUR_PROJECT_ID
 ```
 
-4. Configure environment variables (see Configuration section)
+5. Configure environment variables (see Configuration section)
 
 ## Configuration
 
@@ -136,7 +144,7 @@ export VT_APIKEY="your-virustotal-api-key"
 ### Start Threat Analysis Agent
 
 ```bash
-python -m agents.threat_agent
+uv run python -m agents.threat_agent
 ```
 
 The agent will start an A2A server on port 8081 (configurable via `THREAT_AGENT_PORT`).
@@ -144,7 +152,7 @@ The agent will start an A2A server on port 8081 (configurable via `THREAT_AGENT_
 ### Start Incident Response Agent
 
 ```bash
-python -m agents.incident_agent
+uv run python -m agents.incident_agent
 ```
 
 The agent will start an A2A server on port 8082 (configurable via `INCIDENT_AGENT_PORT`).
@@ -152,10 +160,16 @@ The agent will start an A2A server on port 8082 (configurable via `INCIDENT_AGEN
 ### Run Root Orchestrator
 
 ```bash
-python -m agents.root_agent
+uv run python -m agents.root_agent
 ```
 
 The orchestrator will discover sub-agents from Vertex AI Registry and process security events.
+
+**Note:** Using `uv run` automatically activates the virtual environment. Alternatively, you can activate it manually:
+```bash
+source .venv/bin/activate  # On macOS/Linux
+python -m agents.root_agent
+```
 
 ## Deployment to Vertex AI
 
@@ -197,13 +211,13 @@ Run the test suite:
 
 ```bash
 # Run all tests
-python -m pytest tests/
+uv run pytest tests/
 
 # Run specific test file
-python -m pytest tests/test_threat_agent.py
+uv run pytest tests/test_threat_agent.py
 
 # Run with coverage
-python -m pytest tests/ --cov=agents --cov=shared
+uv run pytest tests/ --cov=agents --cov=shared
 ```
 
 ### Test Structure
@@ -352,6 +366,27 @@ Once deployed to Vertex AI, monitor agents via:
 
 ## Development
 
+### Dependency Management
+
+This project uses **UV** (fast Python package manager) for dependency management.
+
+#### Adding New Dependencies
+
+```bash
+# Add a new dependency
+uv add package-name
+
+# Add a development dependency
+uv add --dev package-name
+
+# Sync dependencies (install all from pyproject.toml)
+uv sync
+```
+
+#### Generating Lock File
+
+The `uv.lock` file ensures reproducible builds. It's automatically generated when you run `uv sync` or `uv add`.
+
 ### Project Structure
 
 ```
@@ -369,7 +404,9 @@ Once deployed to Vertex AI, monitor agents via:
 ├── tests/              # Test suite
 ├── deployment/         # Deployment scripts
 ├── config/             # Configuration files
-└── requirements.txt
+├── pyproject.toml       # Project dependencies (UV)
+├── requirements.txt    # Dependencies (kept for backwards compatibility)
+└── uv.lock             # Lock file for reproducible builds
 ```
 
 ## Contributing
