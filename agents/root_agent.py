@@ -7,6 +7,10 @@ import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv(override=True)  # Loads from .env in current directory or parent directories
+
 from google import adk
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.run_config import RunConfig
