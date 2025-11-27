@@ -273,7 +273,8 @@ if __name__ == "__main__":
         print("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set")
         sys.exit(1)
     
-    port = int(os.getenv("INCIDENT_AGENT_PORT", "8082"))
+    # Cloud Run sets PORT environment variable, fallback to INCIDENT_AGENT_PORT for local dev
+    port = int(os.getenv("PORT", os.getenv("INCIDENT_AGENT_PORT", "8082")))
     
     agent = IncidentResponseAgent(project_id)
     agent.start_a2a_server(port=port, register=True)

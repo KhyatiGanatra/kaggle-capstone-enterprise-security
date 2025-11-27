@@ -73,12 +73,19 @@ class ThreatAnalysisAgent:
     
     def __init__(self, project_id: str, endpoint: Optional[str] = None):
         self.project_id = project_id
-        self.memory = ThreatIntelMemory(project_id)
+        try:
+            self.memory = ThreatIntelMemory(project_id)
+            logger.info("Threat intelligence memory initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize BigQuery memory (will continue without persistence): {e}")
+            self.memory = None
+        
         self.config = GoogleSecurityMCPConfig()
         self.endpoint = endpoint or os.getenv("THREAT_AGENT_ENDPOINT", "http://localhost:8081")
         
         # Initialize ADK agent
-        self.agent = adk.Agent(
+        try:
+            self.agent = adk.Agent(
             name="ThreatAnalysisAgent",
             model="gemini-2.5-pro-preview-03-25",
             instruction="""You are an expert Cyber Threat Intelligence Analyst with access to Google Threat Intelligence (GTI).
@@ -136,15 +143,24 @@ Output Format:
 }
 
 Be thorough, accurate, and prioritize based on actual threat level."""
-        )
+            )
+            logger.info("ADK agent initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize ADK agent: {e}", exc_info=True)
+            raise
         
         logger.info("✓ Threat Analysis Agent initialized")
     
     def analyze_indicator(self, indicator: str, indicator_type: str, context: str = "") -> dict:
         """Analyze a security indicator using GTI and organizational memory"""
         
-        # Retrieve historical data from memory
-        historical_data = self.memory.retrieve_threat_history(indicator)
+        # Retrieve historical data from memory (if available)
+        historical_data = []
+        if self.memory:
+            try:
+                historical_data = self.memory.retrieve_threat_history(indicator)
+            except Exception as e:
+                logger.warning(f"Failed to retrieve historical data: {e}")
         
         # Build analysis request
         analysis_prompt = f"""Analyze this security indicator using Google Threat Intelligence:
@@ -189,8 +205,12 @@ Return your analysis in the JSON format specified in your instructions."""
                     "analyzed_at": datetime.now().isoformat()
                 }
             
-            # Store in memory
-            self.memory.store_threat_analysis(analysis_result)
+            # Store in memory (if available)
+            if self.memory:
+                try:
+                    self.memory.store_threat_analysis(analysis_result)
+                except Exception as e:
+                    logger.warning(f"Failed to store analysis in memory: {e}")
             
             return {
                 "success": True,
@@ -226,18 +246,23 @@ Return your analysis in the JSON format specified in your instructions."""
         # Register A2A methods
         server.register_method("analyze_indicator", self.analyze_indicator)
         
-        # Register with Vertex AI if requested
-        if register:
-            registry = VertexAIAgentRegistry(self.project_id)
-            registry.register_agent(
-                agent_name="ThreatAnalysisAgent",
-                endpoint=self.endpoint,
-                capabilities=["analyze_indicator", "threat_intelligence", "ioc_analysis"]
-            )
-            logger.info("Registered ThreatAnalysisAgent with Vertex AI Agent Registry")
-        
-        # Start server
+        # Start server FIRST (so Cloud Run health checks pass)
         logger.info(f"Starting ThreatAnalysisAgent A2A server on port {port}")
+        
+        # Register with Vertex AI in background (non-blocking)
+        if register:
+            try:
+                registry = VertexAIAgentRegistry(self.project_id)
+                registry.register_agent(
+                    agent_name="ThreatAnalysisAgent",
+                    endpoint=self.endpoint,
+                    capabilities=["analyze_indicator", "threat_intelligence", "ioc_analysis"]
+                )
+                logger.info("Registered ThreatAnalysisAgent with Vertex AI Agent Registry")
+            except Exception as e:
+                logger.warning(f"Failed to register with Vertex AI Agent Registry (continuing anyway): {e}")
+        
+        # Start server (this blocks)
         server.run(host='0.0.0.0', debug=False)
 
 
@@ -245,12 +270,29 @@ if __name__ == "__main__":
     # Run as standalone service
     import sys
     
+    # Configure logging for Cloud Run
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
     if not project_id:
-        print("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set")
+        logger.error("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set")
+        print("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set", file=sys.stderr)
         sys.exit(1)
     
-    port = int(os.getenv("THREAT_AGENT_PORT", "8081"))
+    # Cloud Run sets PORT environment variable, fallback to THREAT_AGENT_PORT for local dev
+    port = int(os.getenv("PORT", os.getenv("THREAT_AGENT_PORT", "8081")))
     
-    agent = ThreatAnalysisAgent(project_id)
-    agent.start_a2a_server(port=port, register=True)
+    logger.info(f"Starting Threat Analysis Agent for project: {project_id}")
+    logger.info(f"Server will listen on port: {port}")
+    
+    try:
+        agent = ThreatAnalysisAgent(project_id)
+        logger.info("Threat Analysis Agent initialized successfully")
+        agent.start_a2a_server(port=port, register=True)
+    except Exception as e:
+        logger.error(f"Failed to start Threat Analysis Agent: {e}", exc_info=True)
+        print(f"ERROR: Failed to start agent: {e}", file=sys.stderr)
+        sys.exit(1)

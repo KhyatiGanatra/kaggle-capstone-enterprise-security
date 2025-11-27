@@ -15,6 +15,7 @@ import uuid
 
 from shared.memory import ThreatIntelMemory, IncidentMemory
 from shared.a2a_client import A2AClient
+from shared.a2a_server import A2AServer
 from shared.vertex_registry import VertexAIAgentRegistry
 
 logger = logging.getLogger(__name__)
@@ -91,9 +92,20 @@ class RootOrchestratorAgent:
             "session_start": datetime.now().isoformat()
         }
         
-        # Persistent memory access
-        self.threat_memory = ThreatIntelMemory(project_id)
-        self.incident_memory = IncidentMemory(project_id)
+        # Persistent memory access (optional - won't crash if BigQuery unavailable)
+        try:
+            self.threat_memory = ThreatIntelMemory(project_id)
+            logger.info("Threat intelligence memory initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize BigQuery threat memory (will continue without persistence): {e}")
+            self.threat_memory = None
+        
+        try:
+            self.incident_memory = IncidentMemory(project_id)
+            logger.info("Incident memory initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize BigQuery incident memory (will continue without persistence): {e}")
+            self.incident_memory = None
         
         # Root orchestrator agent
         self.agent = adk.Agent(
@@ -162,7 +174,7 @@ Be decisive, coordinate effectively, and ensure no threat goes unaddressed."""
         logger.info("✓ Root Orchestrator initialized")
     
     def _discover_sub_agents(self):
-        """Discover sub-agents from Vertex AI Agent Registry"""
+        """Discover sub-agents from Vertex AI Agent Registry, with fallback to environment variables"""
         try:
             # Discover Threat Analysis Agent
             threat_agent_info = self.registry.discover_agent("ThreatAnalysisAgent")
@@ -170,8 +182,12 @@ Be decisive, coordinate effectively, and ensure no threat goes unaddressed."""
                 self.threat_agent_endpoint = threat_agent_info.get('endpoint')
                 logger.info(f"✓ Discovered ThreatAnalysisAgent at {self.threat_agent_endpoint}")
             else:
-                logger.warning("⚠ ThreatAnalysisAgent not found in registry")
-                self.threat_agent_endpoint = None
+                # Fallback to environment variable for local development
+                self.threat_agent_endpoint = os.getenv("THREAT_AGENT_ENDPOINT")
+                if self.threat_agent_endpoint:
+                    logger.info(f"✓ Using ThreatAnalysisAgent from environment: {self.threat_agent_endpoint}")
+                else:
+                    logger.warning("⚠ ThreatAnalysisAgent not found in registry and no THREAT_AGENT_ENDPOINT set")
             
             # Discover Incident Response Agent
             incident_agent_info = self.registry.discover_agent("IncidentResponseAgent")
@@ -179,13 +195,18 @@ Be decisive, coordinate effectively, and ensure no threat goes unaddressed."""
                 self.incident_agent_endpoint = incident_agent_info.get('endpoint')
                 logger.info(f"✓ Discovered IncidentResponseAgent at {self.incident_agent_endpoint}")
             else:
-                logger.warning("⚠ IncidentResponseAgent not found in registry")
-                self.incident_agent_endpoint = None
+                # Fallback to environment variable for local development
+                self.incident_agent_endpoint = os.getenv("INCIDENT_AGENT_ENDPOINT")
+                if self.incident_agent_endpoint:
+                    logger.info(f"✓ Using IncidentResponseAgent from environment: {self.incident_agent_endpoint}")
+                else:
+                    logger.warning("⚠ IncidentResponseAgent not found in registry and no INCIDENT_AGENT_ENDPOINT set")
                 
         except Exception as e:
             logger.error(f"Error discovering sub-agents: {e}")
-            self.threat_agent_endpoint = None
-            self.incident_agent_endpoint = None
+            # Fallback to environment variables on error
+            self.threat_agent_endpoint = os.getenv("THREAT_AGENT_ENDPOINT")
+            self.incident_agent_endpoint = os.getenv("INCIDENT_AGENT_ENDPOINT")
     
     def _call_threat_agent(self, indicator: str, indicator_type: str, context: str = "") -> dict:
         """Call Threat Analysis Agent via A2A protocol"""
@@ -262,8 +283,20 @@ Be decisive, coordinate effectively, and ensure no threat goes unaddressed."""
         self.session_memory['processed_indicators'].add(indicator)
         
         # Get historical context from persistent memory
-        threat_history = self.threat_memory.retrieve_threat_history(indicator)
-        active_incidents = self.incident_memory.get_active_incidents()
+        # Retrieve historical data from memory (if available)
+        threat_history = []
+        if self.threat_memory:
+            try:
+                threat_history = self.threat_memory.retrieve_threat_history(indicator)
+            except Exception as e:
+                logger.warning(f"Failed to retrieve threat history: {e}")
+        
+        active_incidents = []
+        if self.incident_memory:
+            try:
+                active_incidents = self.incident_memory.get_active_incidents()
+            except Exception as e:
+                logger.warning(f"Failed to retrieve active incidents: {e}")
         
         # Step 1: Delegate to Threat Analysis Agent via A2A
         logger.info(f"[ORCHESTRATOR] Delegating to ThreatAnalysisAgent via A2A...")
@@ -338,8 +371,20 @@ Please provide an executive summary of:
     
     def get_organizational_intelligence(self, days: int = 7) -> dict:
         """Get organizational threat intelligence summary from persistent memory"""
-        recent_threats = self.threat_memory.get_recent_threats(hours=days*24)
-        active_incidents = self.incident_memory.get_active_incidents()
+        # Retrieve data from memory (if available)
+        recent_threats = []
+        if self.threat_memory:
+            try:
+                recent_threats = self.threat_memory.get_recent_threats(hours=days*24)
+            except Exception as e:
+                logger.warning(f"Failed to retrieve recent threats: {e}")
+        
+        active_incidents = []
+        if self.incident_memory:
+            try:
+                active_incidents = self.incident_memory.get_active_incidents()
+            except Exception as e:
+                logger.warning(f"Failed to retrieve active incidents: {e}")
         
         # Aggregate statistics
         severity_counts = {}
@@ -361,28 +406,73 @@ Please provide an executive summary of:
             "critical_incidents": len([i for i in active_incidents if i.get('severity') == 'CRITICAL']),
             "high_incidents": len([i for i in active_incidents if i.get('severity') == 'HIGH'])
         }
+    
+    def start_a2a_server(self, port: int = 8080, register: bool = True):
+        """
+        Start A2A protocol server for this agent
+        
+        Args:
+            port: Port to run the server on
+            register: Whether to register with Vertex AI Agent Registry
+        """
+        server = A2AServer(agent_name="RootOrchestratorAgent", port=port)
+        
+        # Register A2A methods
+        server.register_method("process_security_event", self.process_security_event)
+        server.register_method("get_session_status", self.get_session_status)
+        
+        # Start server FIRST (so Cloud Run health checks pass)
+        logger.info(f"Starting RootOrchestratorAgent A2A server on port {port}")
+        
+        # Register with Vertex AI in background (non-blocking)
+        if register:
+            try:
+                registry = VertexAIAgentRegistry(self.project_id, self.location)
+                endpoint = os.getenv("ROOT_AGENT_ENDPOINT", f"http://localhost:{port}")
+                registry.register_agent(
+                    agent_name="RootOrchestratorAgent",
+                    endpoint=endpoint,
+                    capabilities=["process_security_event", "orchestration", "threat_coordination"]
+                )
+                logger.info("Registered RootOrchestratorAgent with Vertex AI Agent Registry")
+            except Exception as e:
+                logger.warning(f"Failed to register with Vertex AI Agent Registry (continuing anyway): {e}")
+        
+        # Start server (this blocks)
+        server.run(host='0.0.0.0', debug=False)
 
 
 if __name__ == "__main__":
     # Run as standalone service
     import sys
     
+    # Configure logging for Cloud Run
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
     if not project_id:
-        print("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set")
+        logger.error("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set")
+        print("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set", file=sys.stderr)
         sys.exit(1)
     
-    orchestrator = RootOrchestratorAgent(project_id)
+    location = os.getenv("VERTEX_AI_LOCATION", "us-central1")
     
-    # Example usage
-    sample_event = {
-        "indicator": "203.0.113.42",
-        "indicator_type": "ip",
-        "source": "SIEM",
-        "timestamp": datetime.now().isoformat()
-    }
+    # Cloud Run sets PORT environment variable, fallback to ROOT_AGENT_PORT for local dev
+    port = int(os.getenv("PORT", os.getenv("ROOT_AGENT_PORT", "8080")))
     
-    result = orchestrator.process_security_event(sample_event)
-    print(json.dumps(result, indent=2))
+    logger.info(f"Starting Root Orchestrator Agent for project: {project_id}")
+    logger.info(f"Server will listen on port: {port}")
+    
+    try:
+        orchestrator = RootOrchestratorAgent(project_id, location)
+        logger.info("Root Orchestrator Agent initialized successfully")
+        orchestrator.start_a2a_server(port=port, register=True)
+    except Exception as e:
+        logger.error(f"Failed to start Root Orchestrator Agent: {e}", exc_info=True)
+        print(f"ERROR: Failed to start agent: {e}", file=sys.stderr)
+        sys.exit(1)
 
 

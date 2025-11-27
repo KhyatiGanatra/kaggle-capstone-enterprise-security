@@ -284,3 +284,6 @@ If Application Default Credentials fail:
 2. For local testing: `gcloud auth application-default login`
 3. Verify service account has necessary permissions
 
+
+
+

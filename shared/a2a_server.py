@@ -2,6 +2,7 @@
 
 import json
 import logging
+import inspect
 from typing import Dict, Any, Callable
 from flask import Flask, request, jsonify
 from google.auth import default
@@ -26,7 +27,13 @@ class A2AServer:
         
         @self.app.route('/health', methods=['GET'])
         def health():
+            """Health check endpoint - responds immediately"""
             return jsonify({"status": "healthy", "agent": self.agent_name}), 200
+        
+        @self.app.route('/', methods=['GET'])
+        def root():
+            """Root endpoint for Cloud Run health checks"""
+            return jsonify({"status": "ok", "agent": self.agent_name, "service": "a2a"}), 200
         
         @self.app.route('/a2a/invoke', methods=['POST'])
         def invoke():
@@ -48,7 +55,36 @@ class A2AServer:
                     }), 404
                 
                 # Execute method
-                result = self.methods[method](**params)
+                # Check if method expects a single dict parameter (like process_security_event)
+                handler = self.methods[method]
+                sig = inspect.signature(handler)
+                params_list = list(sig.parameters.keys())
+                
+                # If method has exactly one parameter (bound methods don't include 'self'),
+                # check if it expects a dict and pass params as that single parameter
+                # Otherwise, unpack params as keyword arguments
+                if len(params_list) == 1:
+                    param_name = params_list[0]
+                    param = sig.parameters[param_name]
+                    # Check if parameter annotation suggests it's a dict
+                    # or if param name suggests it should be a dict (event, data, payload)
+                    param_annotation = param.annotation
+                    is_dict_param = (
+                        param_annotation == dict or
+                        (hasattr(param_annotation, '__origin__') and 
+                         param_annotation.__origin__ is dict) or
+                        param_name in ['event', 'data', 'payload', 'threat_analysis']
+                    )
+                    
+                    if is_dict_param and isinstance(params, dict):
+                        # Single dict parameter - pass params dict directly
+                        result = handler(params)
+                    else:
+                        # Single parameter but not a dict - unpack as keyword arguments
+                        result = handler(**params)
+                else:
+                    # Multiple parameters - unpack as keyword arguments
+                    result = handler(**params)
                 
                 return jsonify({
                     "success": True,
@@ -71,7 +107,13 @@ class A2AServer:
     
     def run(self, host: str = '0.0.0.0', debug: bool = False):
         """Run the A2A server"""
-        logger.info(f"Starting A2A server for {self.agent_name} on port {self.port}")
-        self.app.run(host=host, port=self.port, debug=debug)
+        logger.info(f"Starting A2A server for {self.agent_name} on {host}:{self.port}")
+        try:
+            # Use threaded mode for better concurrency
+            self.app.run(host=host, port=self.port, debug=debug, threaded=True)
+        except Exception as e:
+            logger.error(f"Failed to start A2A server: {e}", exc_info=True)
+            raise
+
 
 

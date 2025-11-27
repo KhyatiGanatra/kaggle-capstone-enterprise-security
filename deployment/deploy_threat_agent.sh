@@ -3,6 +3,12 @@
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Change to project root (one level up from deployment/)
+PROJECT_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
+cd "${PROJECT_ROOT}"
+
 PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-"your-project-id"}
 LOCATION=${VERTEX_AI_LOCATION:-"us-central1"}
 IMAGE_NAME="gcr.io/${PROJECT_ID}/threat-analysis-agent"
@@ -11,10 +17,11 @@ SERVICE_NAME="threat-analysis-agent"
 echo "Deploying Threat Analysis Agent to Vertex AI..."
 echo "Project: ${PROJECT_ID}"
 echo "Location: ${LOCATION}"
+echo "Working directory: ${PROJECT_ROOT}"
 
-# Build Docker image
-echo "Building Docker image..."
-docker build -t ${IMAGE_NAME} -f deployment/Dockerfile.threat_agent .
+# Build Docker image for linux/amd64 (Cloud Run platform)
+echo "Building Docker image for linux/amd64..."
+docker build --platform linux/amd64 -t ${IMAGE_NAME} -f deployment/Dockerfile.threat_agent .
 
 # Push to Google Container Registry
 echo "Pushing image to GCR..."
@@ -59,5 +66,6 @@ print('Agent registered successfully!')
 "
 
 echo "Deployment complete!"
+
 
 

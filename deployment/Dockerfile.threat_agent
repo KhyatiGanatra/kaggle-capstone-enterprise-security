@@ -21,12 +21,16 @@ RUN touch shared/__init__.py && touch agents/__init__.py
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8081
+ENV PYTHONPATH=/app
+# Cloud Run will set PORT env var automatically (defaults to 8080)
+# We'll read it in the application code
 
-# Expose port
-EXPOSE 8081
+# Expose port (Cloud Run uses PORT env var, but we expose 8080 as default)
+EXPOSE 8080
 
 # Run the agent
-CMD ["python", "-m", "agents.threat_agent"]
+# Use python from the venv explicitly
+CMD ["/app/.venv/bin/python", "-m", "agents.threat_agent"]
+
 
 
