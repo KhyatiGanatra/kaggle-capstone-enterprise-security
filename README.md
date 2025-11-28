@@ -1,463 +1,185 @@
-# Multi-Agent Security System - Production Edition
+# Multi-Agent Security System
 
-A production-ready, distributed multi-agent security system built with Google ADK, communicating via A2A (Agent-to-Agent) protocol over HTTPS. All agents are designed to be deployed independently on Vertex AI.
+A distributed multi-agent security system built with Google ADK, designed for enterprise security operations.
 
 ## Architecture
 
 ```
-+---------------------------------------------------------+
-|  Root Orchestrator Agent                                |
-|  (Vertex AI Endpoint)                                   |
-|  - Discovers sub-agents from Vertex AI Registry         |
-|  - Coordinates workflow via A2A protocol               |
-+---------------------------------------------------------+
-                          |
-                          | A2A Protocol (HTTPS)
-                          |
-        +-----------------+-----------------+
-        |                                   |
-        v                                   v
-+----------------------+        +----------------------+
-| Threat Analysis      |        | Incident Response     |
-| Agent Service        |        | Agent Service        |
-|                      |        |                      |
-| - GTI Integration    |        | - Chronicle SecOps   |
-| - IOC Analysis       |        | - Chronicle SOAR     |
-| - Vertex AI Registry |        | - Vertex AI Registry |
-+----------------------+        +----------------------+
+┌─────────────────────────────────────────────────────────────┐
+│                    ROOT ORCHESTRATOR                         │
+│                    (Coordinates workflow)                    │
+└─────────────────────────────┬───────────────────────────────┘
+                              │ A2A Protocol (HTTPS)
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+┌─────────────────────────┐     ┌─────────────────────────┐
+│   THREAT ANALYSIS       │     │   INCIDENT RESPONSE     │
+│   AGENT                 │     │   AGENT                 │
+│                         │     │                         │
+│   • GTI/VirusTotal      │     │   • Chronicle SecOps    │
+│   • IOC Analysis        │     │   • SOAR Playbooks      │
+│   • MITRE ATT&CK        │     │   • Case Management     │
+└─────────────────────────┘     └─────────────────────────┘
 ```
 
-## Components
+## Quick Start
 
-### Agents
-
-1. **RootOrchestratorAgent** (`agents/root_agent.py`)
-
-   - Coordinates all sub-agents
-   - Discovers agents from Vertex AI Agent Registry
-   - Makes decisions on threat response
-   - Manages session and persistent memory
-2. **ThreatAnalysisAgent** (`agents/threat_agent.py`)
-
-   - Analyzes security indicators using Google Threat Intelligence (GTI)
-   - Provides threat severity assessment
-   - Maps threats to MITRE ATT&CK techniques
-   - Stores findings in BigQuery
-3. **IncidentResponseAgent** (`agents/incident_agent.py`)
-
-   - Handles security incidents using Chronicle SecOps and SOAR
-   - Executes automated response playbooks
-   - Manages incident lifecycle
-   - Documents incident timeline
-
-### Shared Components
-
-- **A2A Protocol** (`shared/a2a_client.py`, `shared/a2a_server.py`)
-
-  - HTTPS-based communication between agents
-  - Standardized request/response format
-  - Authentication via Google Cloud credentials
-- **Vertex AI Agent Registry** (`shared/vertex_registry.py`)
-
-  - Agent registration and discovery
-  - Endpoint resolution
-  - Capability-based filtering
-- **Memory Management** (`shared/memory.py`)
-
-  - BigQuery-based persistent storage
-  - Threat intelligence history
-  - Incident tracking
-
-## Prerequisites
-
-- Python 3.9+
-- UV package manager (fast Python package manager)
-- **Docker** (required for building and deploying containerized agents)
-  - Install on macOS: `brew install --cask docker` or download from [docker.com](https://www.docker.com/products/docker-desktop)
-  - Verify installation: `docker --version`
-- **Google Cloud SDK (gcloud CLI)** (required for deployment)
-  - Install: `brew install google-cloud-sdk` or follow [Google Cloud SDK installation guide](https://cloud.google.com/sdk/docs/install)
-  - Authenticate: `gcloud auth login` and `gcloud auth application-default login`
-- Google Cloud Project with:
-  - Vertex AI API enabled
-  - BigQuery API enabled
-  - Cloud Run API enabled
-  - Container Registry API enabled
-  - Service account with appropriate permissions
-- Google AI API key (for Gemini models)
-- Environment variables configured (see Configuration section)
-
-## Installation
-
-1. Clone the repository:
+### 1. Install Dependencies
 
 ```bash
-git clone <repository-url>
-cd kaggle-capstone-entr-sec
-```
-
-2. Install UV (if not already installed):
-
-```bash
+# Install UV package manager (if not installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
-```
 
-3. Install dependencies:
-
-```bash
+# Install dependencies
 uv sync
 ```
 
-This will create a virtual environment (`.venv`) and install all dependencies from `pyproject.toml`.
-
-4. Set up Google Cloud authentication:
+### 2. Configure Environment
 
 ```bash
-gcloud auth application-default login
-gcloud config set project YOUR_PROJECT_ID
+# Copy template
+cp env.template .env
+
+# Edit with your credentials
+nano .env
 ```
 
-5. Configure environment variables (see Configuration section)
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file or set the following environment variables:
-
+Required environment variables:
 ```bash
-# Google Cloud
-export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account.json"
+GOOGLE_CLOUD_PROJECT=your-project-id
+GOOGLE_API_KEY=your-gemini-api-key
 
-# Google AI (Gemini)
-export GOOGLE_API_KEY="your-google-ai-api-key"
-
-# Vertex AI
-export VERTEX_AI_LOCATION="us-central1"
-
-# Agent Endpoints (for A2A communication)
-export THREAT_AGENT_ENDPOINT="https://threat-agent.run.app"
-export INCIDENT_AGENT_ENDPOINT="https://incident-agent.run.app"
-
-# Chronicle SecOps (optional)
-export CHRONICLE_PROJECT_ID="your-chronicle-project-id"
-export CHRONICLE_CUSTOMER_ID="your-cuskkkk
-tomer-id"
-export CHRONICLE_REGION="us"
-
-# Chronicle SOAR (optional)
-export SOAR_URL="https://your-tenant.siemplify-soar.com:443"
-export SOAR_APP_KEY="your-soar-api-key"
-
-# Google Threat Intelligence / VirusTotal
-export VT_APIKEY="your-virustotal-api-key"
+# Optional (for real threat intel)
+VT_APIKEY=your-virustotal-api-key
 ```
 
-## Running Locally
-
-### Start Threat Analysis Agent
+### 3. Run Locally
 
 ```bash
+# Terminal 1: Start Threat Agent
 uv run python -m agents.threat_agent
-```
 
-The agent will start an A2A server on port 8081 (configurable via `THREAT_AGENT_PORT`).
-
-### Start Incident Response Agent
-
-```bash
+# Terminal 2: Start Incident Agent
 uv run python -m agents.incident_agent
-```
 
-The agent will start an A2A server on port 8082 (configurable via `INCIDENT_AGENT_PORT`).
-
-### Run Root Orchestrator
-
-```bash
+# Terminal 3: Start Root Orchestrator
 uv run python -m agents.root_agent
 ```
 
-The orchestrator will discover sub-agents from Vertex AI Registry and process security events.
-
-**Note:** Using `uv run` automatically activates the virtual environment. Alternatively, you can activate it manually:
+### 4. Test
 
 ```bash
-source .venv/bin/activate  # On macOS/Linux
-python -m agents.root_agent
+# Health check
+curl http://localhost:8081/health
+curl http://localhost:8082/health
+
+# Run unit tests
+uv run pytest tests/ -v
 ```
 
-## Deployment to Vertex AI
+## Project Structure
 
-**Prerequisites for Deployment:**
-- Docker must be installed and running (`docker ps` should work)
-- Google Cloud SDK (gcloud CLI) must be installed and authenticated
-- You must have permissions to:
-  - Build and push Docker images to Google Container Registry
-  - Deploy Cloud Run services
-  - Register agents in Vertex AI Agent Registry
-
-### Deploy Individual Agents
-
-Each agent can be deployed independently to Vertex AI:
-
-#### 1. Deploy Threat Analysis Agent
-
-```bash
-cd deployment
-./deploy_threat_agent.sh
+```
+├── agents/                  # The 3 agents
+│   ├── threat_agent.py      # Threat analysis (port 8081)
+│   ├── incident_agent.py    # Incident response (port 8082)
+│   └── root_agent.py        # Orchestrator
+│
+├── shared/                  # Shared utilities
+│   ├── a2a_client.py        # A2A protocol client
+│   ├── a2a_server.py        # A2A protocol server
+│   ├── config.py            # MCP server config
+│   ├── memory.py            # BigQuery memory
+│   └── vertex_registry.py   # Agent registry
+│
+├── tests/                   # Unit tests
+│
+└── deployment/              # Cloud Run deployment
+    ├── Dockerfile.*         # Container configs
+    └── deploy_*.sh          # Deploy scripts
 ```
 
-#### 2. Deploy Incident Response Agent
+## Agents
 
-```bash
-./deploy_incident_agent.sh
-```
+### ThreatAnalysisAgent
+- Analyzes security indicators (IPs, domains, hashes, URLs)
+- Uses Google Threat Intelligence / VirusTotal
+- Returns severity, confidence, MITRE techniques
 
-#### 3. Deploy Root Orchestrator
+### IncidentResponseAgent
+- Handles security incidents
+- Creates cases, executes playbooks
+- Integrates with Chronicle SecOps/SOAR
 
-```bash
-./deploy_root_agent.sh
-```
-
-### Using Deployment Scripts
-
-The deployment scripts in `deployment/` directory handle:
-
-- Building container images
-- Pushing to Google Container Registry
-- Deploying to Vertex AI
-- Registering agents in Vertex AI Agent Registry
-- Setting up HTTPS endpoints
-
-## Testing
-
-Run the test suite:
-
-```bash
-# Run all tests
-uv run pytest tests/
-
-# Run specific test file
-uv run pytest tests/test_threat_agent.py
-
-# Run with coverage
-uv run pytest tests/ --cov=agents --cov=shared
-```
-
-### Test Structure
-
-- `tests/test_threat_agent.py` - Threat Analysis Agent tests
-- `tests/test_incident_agent.py` - Incident Response Agent tests
-- `tests/test_root_agent.py` - Root Orchestrator tests
-- `tests/test_a2a.py` - A2A protocol tests
-- `tests/test_integration.py` - End-to-end integration tests
-
-## Usage
-
-### Process a Security Event
-
-```python
-from agents.root_agent import RootOrchestratorAgent
-
-# Initialize orchestrator
-orchestrator = RootOrchestratorAgent(project_id="your-project-id")
-
-# Process security event
-event = {
-    "indicator": "203.0.113.42",
-    "indicator_type": "ip",
-    "source": "SIEM",
-    "timestamp": "2025-11-23T10:00:00Z"
-}
-
-result = orchestrator.process_security_event(event)
-print(result)
-```
-
-### Direct Agent Invocation (via A2A)
-
-```python
-from shared.a2a_client import A2AClient
-
-client = A2AClient(project_id="your-project-id")
-
-# Call Threat Analysis Agent
-result = client.invoke_agent(
-    agent_name="ThreatAnalysisAgent",
-    method="analyze_indicator",
-    params={
-        "indicator": "203.0.113.42",
-        "indicator_type": "ip"
-    },
-    endpoint="https://threat-agent.run.app"
-)
-```
+### RootOrchestratorAgent
+- Coordinates the workflow
+- Delegates to sub-agents via A2A protocol
+- Makes escalation decisions
 
 ## A2A Protocol
 
-The A2A (Agent-to-Agent) protocol enables communication between distributed agents over HTTPS.
-
-### Request Format
+Agents communicate via HTTPS using the A2A (Agent-to-Agent) protocol:
 
 ```json
+// Request
+POST /a2a/invoke
 {
   "agent": "ThreatAnalysisAgent",
   "method": "analyze_indicator",
   "params": {
     "indicator": "203.0.113.42",
-    "indicator_type": "ip",
-    "context": "Additional context"
-  },
-  "protocol_version": "1.0"
+    "indicator_type": "ip"
+  }
 }
-```
 
-### Response Format
-
-```json
+// Response
 {
   "success": true,
-  "agent": "ThreatAnalysisAgent",
-  "method": "analyze_indicator",
   "result": {
-    "indicator": "203.0.113.42",
     "severity": "CRITICAL",
     "confidence": 95
   }
 }
 ```
 
-## Vertex AI Agent Registry
-
-Agents register themselves in Vertex AI Agent Registry upon startup, making them discoverable by other agents.
-
-### Registration
-
-Agents automatically register with:
-
-- Agent name
-- HTTPS endpoint
-- Capabilities list
-- Metadata
-
-### Discovery
-
-The Root Orchestrator discovers sub-agents by querying the registry:
-
-```python
-from shared.vertex_registry import VertexAIAgentRegistry
-
-registry = VertexAIAgentRegistry(project_id="your-project-id")
-agent_info = registry.discover_agent("ThreatAnalysisAgent")
-```
-
-## Monitoring and Logging
-
-### Logging
-
-All agents use Python's `logging` module. Set log level via:
-
-```python
-import logging
-logging.basicConfig(level=logging.INFO)
-```
-
-### Vertex AI Monitoring
-
-Once deployed to Vertex AI, monitor agents via:
-
-- Vertex AI Console
-- Cloud Logging
-- Cloud Monitoring
-
-## Troubleshooting
-
-### Agent Discovery Fails
-
-- Verify agents are registered in Vertex AI Agent Registry
-- Check endpoint URLs are correct
-- Ensure service account has necessary permissions
-
-### A2A Communication Errors
-
-- Verify HTTPS endpoints are accessible
-- Check authentication credentials
-- Review firewall/network rules
-
-### BigQuery Errors
-
-- Ensure BigQuery dataset exists
-- Verify service account has BigQuery permissions
-- Check table schemas match expected format
-
-## Development
-
-### Dependency Management
-
-This project uses **UV** (fast Python package manager) for dependency management.
-
-#### Adding New Dependencies
+## Deployment (Cloud Run)
 
 ```bash
-# Add a new dependency
-uv add package-name
+# Set environment
+export GOOGLE_CLOUD_PROJECT=your-project-id
+export GOOGLE_API_KEY=your-api-key
 
-# Add a development dependency
-uv add --dev package-name
-
-# Sync dependencies (install all from pyproject.toml)
-uv sync
+# Deploy all agents
+cd deployment
+./deploy_threat_agent.sh
+./deploy_incident_agent.sh
+./deploy_root_agent.sh
 ```
 
-#### Generating Lock File
+## Testing
 
-The `uv.lock` file ensures reproducible builds. It's automatically generated when you run `uv sync` or `uv add`.
+```bash
+# Run all tests
+uv run pytest tests/ -v
 
-### Project Structure
+# Run specific test
+uv run pytest tests/test_threat_agent.py -v
 
-```
-.
-├── agents/              # Agent modules
-│   ├── root_agent.py
-│   ├── threat_agent.py
-│   └── incident_agent.py
-├── shared/             # Shared utilities
-│   ├── a2a_client.py
-│   ├── a2a_server.py
-│   ├── memory.py
-│   ├── config.py
-│   └── vertex_registry.py
-├── tests/              # Test suite
-├── deployment/         # Deployment scripts
-├── config/             # Configuration files
-├── pyproject.toml       # Project dependencies (UV)
-├── requirements.txt    # Dependencies (kept for backwards compatibility)
-└── uv.lock             # Lock file for reproducible builds
+# Run with coverage
+uv run pytest tests/ --cov=agents --cov=shared
 ```
 
-## Contributing
+## Environment Variables
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GOOGLE_CLOUD_PROJECT` | Yes | GCP Project ID |
+| `GOOGLE_API_KEY` | Yes | Gemini API key |
+| `VT_APIKEY` | No | VirusTotal API key |
+| `CHRONICLE_PROJECT_ID` | No | Chronicle SecOps project |
+| `SOAR_URL` | No | Chronicle SOAR URL |
+| `SOAR_APP_KEY` | No | Chronicle SOAR API key |
 
 ## License
 
-[Your License Here]
-
-## Support
-
-For issues and questions:
-
-- Open an issue on GitHub
-- Contact: [Your Contact Information]
-
-## References
-
-- [Google ADK Documentation](https://github.com/google/adk-docs)
-- [Vertex AI Agent Engine](https://cloud.google.com/vertex-ai/docs)
-- [A2A Protocol Specification](https://google.github.io/adk-docs/a2a/intro/)
-- [Google Cloud Security MCP Servers](https://github.com/google/mcp-security)
+MIT
