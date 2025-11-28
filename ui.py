@@ -1,7 +1,7 @@
 """
 Multi-Agent Security System - Web UI
 =====================================
-A Streamlit-based interface for the security multi-agent system.
+A modern, elegant interface for the security multi-agent system.
 
 Run with: streamlit run ui.py
 """
@@ -16,7 +16,6 @@ load_dotenv(override=True)
 
 # Import our agents and tools
 from agents.threat_agent import (
-    ThreatAnalysisAgent, 
     get_ip_report, get_domain_report, get_hash_report, get_url_report,
     _parse_vt_stats
 )
@@ -30,100 +29,502 @@ from agents.incident_agent import (
 # =============================================================================
 
 st.set_page_config(
-    page_title="Security Operations Center",
-    page_icon="🛡️",
+    page_title="Sentinel",
+    page_icon="◆",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # =============================================================================
-# CUSTOM CSS
+# CUSTOM CSS - Modern Elegant Design
 # =============================================================================
 
 st.markdown("""
 <style>
-    /* Dark theme inspired styling */
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    
+    /* Root variables */
+    :root {
+        --bg-primary: #0a0a0f;
+        --bg-secondary: #12121a;
+        --bg-card: rgba(22, 22, 32, 0.8);
+        --bg-hover: rgba(255, 255, 255, 0.03);
+        --border-subtle: rgba(255, 255, 255, 0.06);
+        --border-accent: rgba(99, 102, 241, 0.4);
+        --text-primary: #f4f4f5;
+        --text-secondary: #a1a1aa;
+        --text-muted: #52525b;
+        --accent-primary: #818cf8;
+        --accent-green: #34d399;
+        --accent-amber: #fbbf24;
+        --accent-red: #f87171;
+        --accent-cyan: #22d3ee;
+    }
+    
+    /* Global reset */
     .stApp {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        background: var(--bg-primary);
+        font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
-    /* Header styling */
-    .main-header {
-        background: linear-gradient(90deg, #0f3460 0%, #533483 100%);
-        padding: 1.5rem 2rem;
-        border-radius: 10px;
+    .stApp > header {
+        background: transparent;
+    }
+    
+    /* Hide streamlit elements */
+    #MainMenu, footer, .stDeployButton {
+        display: none;
+    }
+    
+    /* Main container */
+    .main .block-container {
+        padding: 2rem 3rem;
+        max-width: 1400px;
+    }
+    
+    /* Typography */
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Sora', sans-serif !important;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    p, span, div {
+        color: var(--text-secondary);
+    }
+    
+    /* Custom header */
+    .header-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.5rem 0 2.5rem 0;
+        border-bottom: 1px solid var(--border-subtle);
         margin-bottom: 2rem;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
     
-    .main-header h1 {
-        color: #e94560;
+    .logo-section {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .logo-icon {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.25);
+    }
+    
+    .logo-text h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
         margin: 0;
-        font-size: 2rem;
+        background: linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: -0.03em;
     }
     
-    .main-header p {
-        color: #a0a0a0;
-        margin: 0.5rem 0 0 0;
+    .logo-text p {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin: 0;
+        font-weight: 400;
     }
     
-    /* Card styling */
-    .metric-card {
-        background: rgba(15, 52, 96, 0.5);
-        border: 1px solid #533483;
-        border-radius: 10px;
+    .status-pills {
+        display: flex;
+        gap: 0.75rem;
+    }
+    
+    .status-pill {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 100px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+    
+    .status-dot.active {
+        background: var(--accent-green);
+        box-shadow: 0 0 12px var(--accent-green);
+    }
+    
+    .status-dot.inactive {
+        background: var(--text-muted);
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        background: var(--bg-secondary);
+        border-radius: 16px;
+        padding: 0.5rem;
+        gap: 0.5rem;
+        border: 1px solid var(--border-subtle);
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-family: 'Sora', sans-serif;
+        font-weight: 500;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        border: none;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-subtle) !important;
+    }
+    
+    .stTabs [data-baseweb="tab-highlight"] {
+        display: none;
+    }
+    
+    .stTabs [data-baseweb="tab-border"] {
+        display: none;
+    }
+    
+    /* Cards */
+    .glass-card {
+        background: var(--bg-card);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--border-subtle);
+        border-radius: 20px;
         padding: 1.5rem;
+        margin: 1rem 0;
+        transition: all 0.3s ease;
+    }
+    
+    .glass-card:hover {
+        border-color: var(--border-accent);
+        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.1);
+    }
+    
+    /* Input styling */
+    .stTextInput > div > div {
+        background: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 12px !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .stTextInput > div > div:focus-within {
+        border-color: var(--accent-primary) !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+    }
+    
+    .stTextInput input {
+        color: var(--text-primary) !important;
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+    
+    .stTextInput input::placeholder {
+        color: var(--text-muted) !important;
+    }
+    
+    .stTextArea textarea {
+        background: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 12px !important;
+        color: var(--text-primary) !important;
+        font-family: 'Sora', sans-serif !important;
+    }
+    
+    /* Select box */
+    .stSelectbox > div > div {
+        background: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 12px !important;
+    }
+    
+    .stSelectbox [data-baseweb="select"] > div {
+        background: var(--bg-secondary) !important;
+        border-color: var(--border-subtle) !important;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 0.75rem 2rem !important;
+        font-family: 'Sora', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.9rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3) !important;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4) !important;
+    }
+    
+    .stButton > button:active {
+        transform: translateY(0) !important;
+    }
+    
+    /* Secondary button style */
+    .secondary-btn > button {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border-subtle) !important;
+        box-shadow: none !important;
+    }
+    
+    .secondary-btn > button:hover {
+        border-color: var(--accent-primary) !important;
+        background: var(--bg-hover) !important;
+    }
+    
+    /* Metrics */
+    .metric-container {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        padding: 1.25rem;
         text-align: center;
+        transition: all 0.3s ease;
+    }
+    
+    .metric-container:hover {
+        border-color: var(--border-accent);
+        transform: translateY(-2px);
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .metric-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-top: 0.5rem;
+    }
+    
+    /* Severity badges */
+    .severity-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 100px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
     
     .severity-critical {
-        background: linear-gradient(135deg, #ff4757 0%, #c0392b 100%);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 5px;
-        font-weight: bold;
+        background: rgba(248, 113, 113, 0.15);
+        color: var(--accent-red);
+        border: 1px solid rgba(248, 113, 113, 0.3);
     }
     
     .severity-high {
-        background: linear-gradient(135deg, #ffa502 0%, #e67e22 100%);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 5px;
-        font-weight: bold;
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--accent-amber);
+        border: 1px solid rgba(251, 191, 36, 0.3);
     }
     
     .severity-medium {
-        background: linear-gradient(135deg, #f9ca24 0%, #f39c12 100%);
-        color: black;
-        padding: 0.5rem 1rem;
-        border-radius: 5px;
-        font-weight: bold;
+        background: rgba(34, 211, 238, 0.15);
+        color: var(--accent-cyan);
+        border: 1px solid rgba(34, 211, 238, 0.3);
     }
     
     .severity-low {
-        background: linear-gradient(135deg, #2ed573 0%, #27ae60 100%);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 5px;
-        font-weight: bold;
+        background: rgba(52, 211, 153, 0.15);
+        color: var(--accent-green);
+        border: 1px solid rgba(52, 211, 153, 0.3);
     }
     
-    /* Result box */
-    .result-box {
-        background: rgba(15, 52, 96, 0.7);
-        border: 1px solid #533483;
-        border-radius: 10px;
+    /* Results card */
+    .results-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 20px;
+        padding: 2rem;
+        margin: 1.5rem 0;
+    }
+    
+    /* Action grid */
+    .action-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
         padding: 1.5rem;
-        margin: 1rem 0;
+        height: 100%;
+        transition: all 0.3s ease;
     }
     
-    /* Action button */
-    .action-taken {
-        background: rgba(46, 213, 115, 0.2);
-        border-left: 4px solid #2ed573;
-        padding: 0.75rem 1rem;
+    .action-card:hover {
+        border-color: var(--border-accent);
+        background: rgba(99, 102, 241, 0.05);
+    }
+    
+    .action-icon {
+        width: 48px;
+        height: 48px;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 12px !important;
+        font-family: 'Sora', sans-serif !important;
+    }
+    
+    .streamlit-expanderContent {
+        background: var(--bg-secondary) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-top: none !important;
+        border-radius: 0 0 12px 12px !important;
+    }
+    
+    /* JSON viewer */
+    .stJson {
+        background: var(--bg-primary) !important;
+        border-radius: 12px !important;
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+    
+    /* Alert boxes */
+    .stAlert {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 12px !important;
+    }
+    
+    .stSuccess {
+        border-left: 4px solid var(--accent-green) !important;
+    }
+    
+    .stWarning {
+        border-left: 4px solid var(--accent-amber) !important;
+    }
+    
+    .stError {
+        border-left: 4px solid var(--accent-red) !important;
+    }
+    
+    /* History item */
+    .history-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.5rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
         margin: 0.5rem 0;
-        border-radius: 0 5px 5px 0;
+        transition: all 0.2s ease;
+    }
+    
+    .history-item:hover {
+        border-color: var(--border-accent);
+        background: var(--bg-hover);
+    }
+    
+    /* Incident row */
+    .incident-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        margin: 0.75rem 0;
+    }
+    
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-muted);
+    }
+    
+    .empty-state-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    /* Footer */
+    .footer {
+        text-align: center;
+        padding: 2rem;
+        margin-top: 3rem;
+        border-top: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+    
+    /* Streamlit overrides */
+    .st-emotion-cache-1v0mbdj {
+        margin-top: 1rem;
+    }
+    
+    /* Hide default metric styling */
+    [data-testid="stMetricValue"] {
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: var(--text-muted) !important;
+    }
+    
+    /* Divider */
+    hr {
+        border-color: var(--border-subtle) !important;
+        margin: 2rem 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -142,73 +543,56 @@ if 'incidents' not in st.session_state:
 # HEADER
 # =============================================================================
 
-st.markdown("""
-<div class="main-header">
-    <h1>🛡️ Security Operations Center</h1>
-    <p>Multi-Agent Threat Analysis & Incident Response System</p>
+vt_key = os.getenv("VT_APIKEY", "")
+gemini_key = os.getenv("GOOGLE_API_KEY", "")
+vt_active = vt_key and not vt_key.startswith("your-")
+gemini_active = gemini_key and not gemini_key.startswith("your-")
+
+st.markdown(f"""
+<div class="header-container">
+    <div class="logo-section">
+        <div class="logo-icon">◆</div>
+        <div class="logo-text">
+            <h1>Sentinel</h1>
+            <p>Security Intelligence Platform</p>
+        </div>
+    </div>
+    <div class="status-pills">
+        <div class="status-pill">
+            <div class="status-dot {'active' if vt_active else 'inactive'}"></div>
+            <span style="color: var(--text-secondary);">VirusTotal</span>
+        </div>
+        <div class="status-pill">
+            <div class="status-dot {'active' if gemini_active else 'inactive'}"></div>
+            <span style="color: var(--text-secondary);">Gemini AI</span>
+        </div>
+        <div class="status-pill">
+            <span style="color: var(--text-muted);">Analyzed: {len(st.session_state.analysis_history)}</span>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
-
-# =============================================================================
-# SIDEBAR
-# =============================================================================
-
-with st.sidebar:
-    st.markdown("## ⚙️ Configuration")
-    
-    # API Status
-    vt_key = os.getenv("VT_APIKEY", "")
-    gemini_key = os.getenv("GOOGLE_API_KEY", "")
-    
-    st.markdown("### API Status")
-    if vt_key and not vt_key.startswith("your-"):
-        st.success("✅ VirusTotal API: Connected")
-    else:
-        st.warning("⚠️ VirusTotal: Mock Mode")
-    
-    if gemini_key and not gemini_key.startswith("your-"):
-        st.success("✅ Gemini API: Connected")
-    else:
-        st.error("❌ Gemini API: Not configured")
-    
-    st.markdown("---")
-    
-    # Stats
-    st.markdown("### 📊 Session Stats")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Analyzed", len(st.session_state.analysis_history))
-    with col2:
-        st.metric("Incidents", len(st.session_state.incidents))
-    
-    # Quick links
-    st.markdown("---")
-    st.markdown("### 🔗 Quick Actions")
-    if st.button("🗑️ Clear History", use_container_width=True):
-        st.session_state.analysis_history = []
-        st.session_state.incidents = []
-        st.rerun()
 
 # =============================================================================
 # MAIN CONTENT
 # =============================================================================
 
-# Tabs
-tab1, tab2, tab3 = st.tabs(["🔍 Threat Analysis", "🚨 Incident Response", "📋 History"])
+tab1, tab2, tab3 = st.tabs(["◈  Threat Analysis", "◈  Incident Response", "◈  Activity Log"])
 
 # -----------------------------------------------------------------------------
 # TAB 1: THREAT ANALYSIS
 # -----------------------------------------------------------------------------
 
 with tab1:
-    st.markdown("### Analyze Security Indicator")
+    st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
     
-    col1, col2 = st.columns([3, 1])
+    # Search section
+    col1, col2, col3 = st.columns([4, 1, 1])
     
     with col1:
         indicator = st.text_input(
-            "Enter indicator to analyze",
-            placeholder="e.g., 203.0.113.42, evil-site.com, or a file hash",
+            "Indicator",
+            placeholder="Enter IP address, domain, file hash, or URL...",
             label_visibility="collapsed"
         )
     
@@ -219,10 +603,11 @@ with tab1:
             label_visibility="collapsed"
         )
     
-    analyze_button = st.button("🔍 Analyze Threat", type="primary", use_container_width=True)
+    with col3:
+        analyze_button = st.button("Analyze", type="primary", use_container_width=True)
     
     if analyze_button and indicator:
-        with st.spinner("Analyzing with VirusTotal..."):
+        with st.spinner(""):
             # Call the appropriate tool
             if indicator_type == "ip":
                 result_json = get_ip_report(indicator)
@@ -239,182 +624,274 @@ with tab1:
             # Store in history
             st.session_state.analysis_history.insert(0, result)
         
-        # Display results
-        st.markdown("---")
-        st.markdown("### Analysis Results")
+        # Results
+        st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
         
-        # Severity badge
         severity = result.get('severity', 'UNKNOWN')
-        severity_colors = {
-            'CRITICAL': '🔴',
-            'HIGH': '🟠',
-            'MEDIUM': '🟡',
-            'LOW': '🟢',
-            'UNKNOWN': '⚪'
-        }
+        severity_class = severity.lower() if severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] else 'medium'
         
+        st.markdown(f"""
+        <div class="results-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
+                <div>
+                    <span class="severity-badge severity-{severity_class}">{severity}</span>
+                    <h2 style="margin: 1rem 0 0.5rem 0; font-size: 1.5rem; color: var(--text-primary);">{result.get('indicator', indicator)}</h2>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Analyzed at {datetime.now().strftime('%H:%M:%S')} • {'Live Data' if not result.get('source', '').endswith('(MOCK)') else 'Demo Mode'}</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Metrics row
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Severity", f"{severity_colors.get(severity, '⚪')} {severity}")
+            st.markdown(f"""
+            <div class="metric-container">
+                <div class="metric-value">{result.get('confidence', 0)}%</div>
+                <div class="metric-label">Confidence</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col2:
-            st.metric("Confidence", f"{result.get('confidence', 0)}%")
+            st.markdown(f"""
+            <div class="metric-container">
+                <div class="metric-value">{result.get('detection_ratio', 'N/A')}</div>
+                <div class="metric-label">Detections</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col3:
-            st.metric("Detection", result.get('detection_ratio', 'N/A'))
+            st.markdown(f"""
+            <div class="metric-container">
+                <div class="metric-value">{result.get('indicator_type', indicator_type).upper()}</div>
+                <div class="metric-label">Type</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col4:
-            st.metric("Source", "Mock" if result.get('source', '').endswith('(MOCK)') else "VirusTotal")
+            source_label = "VT" if not result.get('source', '').endswith('(MOCK)') else "MOCK"
+            st.markdown(f"""
+            <div class="metric-container">
+                <div class="metric-value">{source_label}</div>
+                <div class="metric-label">Source</div>
+            </div>
+            """, unsafe_allow_html=True)
         
-        # Details
-        with st.expander("📄 Full Details", expanded=True):
+        # Details expander
+        st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
+        with st.expander("View Raw Intelligence Data"):
             st.json(result)
         
-        # Actions for high severity
+        # Quick actions for high severity
         if severity in ['CRITICAL', 'HIGH']:
-            st.markdown("---")
-            st.warning(f"⚠️ **{severity} threat detected!** Consider taking immediate action.")
+            st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
+            st.warning(f"⚡ **Elevated threat level detected.** Recommended: Take immediate action.")
             
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, _ = st.columns([1, 1, 1, 1])
             
             with col1:
-                if st.button("🚫 Block Indicator", use_container_width=True):
+                if st.button("🚫  Block Indicator", use_container_width=True):
                     if indicator_type == "ip":
                         action_result = json.loads(block_ip(indicator))
-                        st.success(f"✅ {action_result['message']}")
+                        st.success(f"✓ {action_result['message']}")
             
             with col2:
-                if st.button("📋 Create Incident", use_container_width=True):
+                if st.button("📋  Create Case", use_container_width=True):
                     case_result = json.loads(create_case(
-                        f"Threat: {indicator}",
+                        f"Threat Alert: {indicator}",
                         severity,
                         f"Auto-generated from threat analysis"
                     ))
                     st.session_state.incidents.insert(0, case_result)
-                    st.success(f"✅ Created {case_result['case_id']}")
+                    st.success(f"✓ Case {case_result['case_id']} created")
             
             with col3:
-                if st.button("🔒 Escalate", use_container_width=True):
-                    st.info("Escalation would notify SOC team")
+                if st.button("📤  Escalate", use_container_width=True):
+                    st.info("Escalation notification sent to SOC team")
+    
+    elif not indicator and analyze_button:
+        st.error("Please enter an indicator to analyze")
 
 # -----------------------------------------------------------------------------
 # TAB 2: INCIDENT RESPONSE
 # -----------------------------------------------------------------------------
 
 with tab2:
-    st.markdown("### Create New Incident")
+    st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
     
-    col1, col2 = st.columns([2, 1])
+    # Create incident section
+    st.markdown("#### New Incident Case")
+    
+    col1, col2 = st.columns([3, 1])
     
     with col1:
-        incident_title = st.text_input("Incident Title", placeholder="e.g., Malware detected on workstation")
+        incident_title = st.text_input("Title", placeholder="Brief description of the incident", label_visibility="collapsed")
     
     with col2:
-        incident_severity = st.selectbox("Severity", ["CRITICAL", "HIGH", "MEDIUM", "LOW"])
+        incident_severity = st.selectbox("Sev", ["CRITICAL", "HIGH", "MEDIUM", "LOW"], label_visibility="collapsed")
     
-    incident_desc = st.text_area("Description", placeholder="Describe the incident...")
+    incident_desc = st.text_area("Description", placeholder="Detailed incident description...", height=100, label_visibility="collapsed")
     
-    if st.button("🚨 Create Incident Case", type="primary"):
+    if st.button("Create Case", type="primary"):
         if incident_title:
             case_result = json.loads(create_case(incident_title, incident_severity, incident_desc))
             st.session_state.incidents.insert(0, case_result)
-            st.success(f"✅ Created incident: {case_result['case_id']}")
+            st.success(f"✓ Case {case_result['case_id']} created successfully")
+        else:
+            st.error("Please provide a title")
     
     st.markdown("---")
-    st.markdown("### 🛠️ Response Actions")
+    
+    # Response actions
+    st.markdown("#### Response Actions")
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown("#### Block IP")
-        block_ip_input = st.text_input("IP Address", placeholder="x.x.x.x", key="block_ip")
-        if st.button("🚫 Block", key="block_ip_btn"):
+        st.markdown("""
+        <div class="action-card">
+            <div class="action-icon">🚫</div>
+            <h4 style="color: var(--text-primary); margin: 0 0 0.5rem 0;">Block IP</h4>
+            <p style="font-size: 0.85rem; margin-bottom: 1rem;">Add IP to firewall blocklist</p>
+        </div>
+        """, unsafe_allow_html=True)
+        block_ip_input = st.text_input("IP Address", placeholder="x.x.x.x", key="block_ip", label_visibility="collapsed")
+        if st.button("Execute", key="block_btn", use_container_width=True):
             if block_ip_input:
                 result = json.loads(block_ip(block_ip_input))
-                st.success(f"✅ {result['message']}")
+                st.success(f"✓ {result['message']}")
     
     with col2:
-        st.markdown("#### Isolate Endpoint")
-        isolate_input = st.text_input("Hostname", placeholder="workstation-01", key="isolate")
-        if st.button("🔒 Isolate", key="isolate_btn"):
+        st.markdown("""
+        <div class="action-card">
+            <div class="action-icon">🔒</div>
+            <h4 style="color: var(--text-primary); margin: 0 0 0.5rem 0;">Isolate Endpoint</h4>
+            <p style="font-size: 0.85rem; margin-bottom: 1rem;">Network isolation for host</p>
+        </div>
+        """, unsafe_allow_html=True)
+        isolate_input = st.text_input("Hostname", placeholder="workstation-01", key="isolate", label_visibility="collapsed")
+        if st.button("Execute", key="isolate_btn", use_container_width=True):
             if isolate_input:
                 result = json.loads(isolate_endpoint(isolate_input))
-                st.success(f"✅ {result['message']}")
+                st.success(f"✓ {result['message']}")
     
     with col3:
-        st.markdown("#### Disable User")
-        disable_input = st.text_input("Username", placeholder="jdoe", key="disable")
-        if st.button("👤 Disable", key="disable_btn"):
+        st.markdown("""
+        <div class="action-card">
+            <div class="action-icon">👤</div>
+            <h4 style="color: var(--text-primary); margin: 0 0 0.5rem 0;">Disable User</h4>
+            <p style="font-size: 0.85rem; margin-bottom: 1rem;">Suspend user account access</p>
+        </div>
+        """, unsafe_allow_html=True)
+        disable_input = st.text_input("Username", placeholder="jdoe", key="disable", label_visibility="collapsed")
+        if st.button("Execute", key="disable_btn", use_container_width=True):
             if disable_input:
                 result = json.loads(disable_user(disable_input))
-                st.success(f"✅ {result['message']}")
+                st.success(f"✓ {result['message']}")
     
     # Active incidents
     st.markdown("---")
-    st.markdown("### 📋 Active Incidents")
+    st.markdown("#### Active Cases")
     
     if st.session_state.incidents:
         for incident in st.session_state.incidents[:5]:
             severity = incident.get('severity', 'MEDIUM')
-            severity_emoji = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MEDIUM': '🟡', 'LOW': '🟢'}.get(severity, '⚪')
+            severity_class = severity.lower()
             
-            with st.expander(f"{severity_emoji} {incident.get('case_id', 'Unknown')} - {incident.get('title', 'Untitled')}", expanded=False):
-                st.write(f"**Status:** {incident.get('status', 'Open')}")
-                st.write(f"**Created:** {incident.get('created_at', 'Unknown')}")
-                if incident.get('actions_taken'):
-                    st.write("**Actions:**")
-                    for action in incident['actions_taken']:
-                        st.write(f"  • {action}")
+            st.markdown(f"""
+            <div class="incident-row">
+                <span class="severity-badge severity-{severity_class}">{severity}</span>
+                <div style="flex: 1;">
+                    <strong style="color: var(--text-primary);">{incident.get('case_id', 'Unknown')}</strong>
+                    <span style="color: var(--text-muted); margin-left: 1rem;">{incident.get('title', 'Untitled')}</span>
+                </div>
+                <span style="color: var(--text-muted); font-size: 0.85rem;">{incident.get('status', 'Open')}</span>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.info("No active incidents")
+        st.markdown("""
+        <div class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            <p>No active cases</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# TAB 3: HISTORY
+# TAB 3: ACTIVITY LOG
 # -----------------------------------------------------------------------------
 
 with tab3:
-    st.markdown("### Analysis History")
+    st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
     
-    if st.session_state.analysis_history:
-        for i, analysis in enumerate(st.session_state.analysis_history[:10]):
-            severity = analysis.get('severity', 'UNKNOWN')
-            severity_emoji = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MEDIUM': '🟡', 'LOW': '🟢'}.get(severity, '⚪')
-            
-            col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-            
-            with col1:
-                st.write(f"{severity_emoji} **{analysis.get('indicator', 'Unknown')}**")
-            with col2:
-                st.write(analysis.get('indicator_type', 'N/A'))
-            with col3:
-                st.write(analysis.get('detection_ratio', 'N/A'))
-            with col4:
-                st.write(severity)
-            
-            if i < len(st.session_state.analysis_history) - 1:
-                st.markdown("---")
-    else:
-        st.info("No analysis history yet. Start by analyzing an indicator!")
+    col1, col2 = st.columns([1, 1])
     
-    st.markdown("---")
-    st.markdown("### Incident History")
+    with col1:
+        st.markdown("#### Threat Analysis Log")
+        
+        if st.session_state.analysis_history:
+            for analysis in st.session_state.analysis_history[:10]:
+                severity = analysis.get('severity', 'UNKNOWN')
+                severity_class = severity.lower() if severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] else 'medium'
+                
+                st.markdown(f"""
+                <div class="history-item">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span class="severity-badge severity-{severity_class}" style="font-size: 0.7rem; padding: 0.35rem 0.75rem;">{severity}</span>
+                        <code style="color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">{analysis.get('indicator', 'Unknown')}</code>
+                    </div>
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">{analysis.get('detection_ratio', 'N/A')}</span>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="empty-state">
+                <div class="empty-state-icon">🔍</div>
+                <p>No analysis history yet</p>
+            </div>
+            """, unsafe_allow_html=True)
     
-    if st.session_state.incidents:
-        for incident in st.session_state.incidents:
-            st.write(f"• **{incident.get('case_id')}**: {incident.get('title')} ({incident.get('severity')})")
-    else:
-        st.info("No incidents created yet.")
+    with col2:
+        st.markdown("#### Incident Log")
+        
+        if st.session_state.incidents:
+            for incident in st.session_state.incidents[:10]:
+                severity = incident.get('severity', 'MEDIUM')
+                severity_class = severity.lower()
+                
+                st.markdown(f"""
+                <div class="history-item">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span class="severity-badge severity-{severity_class}" style="font-size: 0.7rem; padding: 0.35rem 0.75rem;">{severity}</span>
+                        <span style="color: var(--text-primary); font-size: 0.85rem;">{incident.get('case_id', 'Unknown')}</span>
+                    </div>
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">{incident.get('status', 'Open')}</span>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="empty-state">
+                <div class="empty-state-icon">🚨</div>
+                <p>No incidents created</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Clear button
+    st.markdown("<div style='height: 2rem'></div>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("Clear All History", use_container_width=True):
+            st.session_state.analysis_history = []
+            st.session_state.incidents = []
+            st.rerun()
 
 # =============================================================================
 # FOOTER
 # =============================================================================
 
-st.markdown("---")
-st.markdown(
-    "<div style='text-align: center; color: #666;'>"
-    "Multi-Agent Security System | Built with Google ADK + Streamlit"
-    "</div>",
-    unsafe_allow_html=True
-)
-
+st.markdown("""
+<div class="footer">
+    <p style="margin: 0;">Sentinel Security Platform • Multi-Agent System</p>
+    <p style="margin: 0.5rem 0 0 0; opacity: 0.5;">Built with Google ADK + Streamlit</p>
+</div>
+""", unsafe_allow_html=True)
