@@ -4,8 +4,12 @@ import os
 import json
 import logging
 import asyncio
+import requests
 from datetime import datetime
 from typing import Dict, Any, Optional
+
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 from google import adk
 from google.adk.agents.invocation_context import InvocationContext
@@ -19,6 +23,144 @@ from shared.a2a_server import A2AServer
 from shared.vertex_registry import VertexAIAgentRegistry
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# VIRUSTOTAL TOOLS - These are the actual tools the agent can call
+# =============================================================================
+
+VT_API_KEY = os.getenv("VT_APIKEY", "")
+VT_BASE_URL = "https://www.virustotal.com/api/v3"
+
+
+def _vt_request(endpoint: str) -> Dict:
+    """Make a request to VirusTotal API"""
+    if not VT_API_KEY or VT_API_KEY.startswith("your-"):
+        # Return mock data for demo
+        return {"mock": True, "data": {"attributes": {"last_analysis_stats": {"malicious": 0}}}}
+    
+    try:
+        response = requests.get(
+            f"{VT_BASE_URL}/{endpoint}",
+            headers={"x-apikey": VT_API_KEY},
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.error(f"VirusTotal API error: {e}")
+        return {"error": str(e)}
+
+
+def _parse_vt_stats(data: Dict, indicator: str, indicator_type: str) -> Dict:
+    """Parse VirusTotal response into standard format"""
+    if data.get("mock"):
+        # Generate mock data based on indicator patterns
+        is_malicious = (
+            indicator.startswith("203.0.113") or
+            "evil" in indicator.lower() or
+            "malware" in indicator.lower()
+        )
+        return {
+            "indicator": indicator,
+            "indicator_type": indicator_type,
+            "severity": "CRITICAL" if is_malicious else "LOW",
+            "confidence": 92 if is_malicious else 10,
+            "malicious_count": 45 if is_malicious else 0,
+            "total_scanners": 70,
+            "detection_ratio": "45/70" if is_malicious else "0/70",
+            "source": "VirusTotal (MOCK)",
+        }
+    
+    attrs = data.get("data", {}).get("attributes", {})
+    stats = attrs.get("last_analysis_stats", {})
+    malicious = stats.get("malicious", 0)
+    total = sum(stats.values()) if stats else 0
+    
+    if total > 0:
+        ratio = malicious / total
+        severity = "CRITICAL" if ratio >= 0.5 else "HIGH" if ratio >= 0.3 else "MEDIUM" if ratio >= 0.1 else "LOW"
+        confidence = min(95, int(ratio * 100 + 20))
+    else:
+        severity = "UNKNOWN"
+        confidence = 0
+    
+    return {
+        "indicator": indicator,
+        "indicator_type": indicator_type,
+        "severity": severity,
+        "confidence": confidence,
+        "malicious_count": malicious,
+        "total_scanners": total,
+        "detection_ratio": f"{malicious}/{total}",
+        "source": "VirusTotal",
+    }
+
+
+def get_ip_report(ip_address: str) -> str:
+    """
+    Check IP address reputation using VirusTotal.
+    
+    Args:
+        ip_address: The IP address to analyze (e.g., "203.0.113.42")
+    
+    Returns:
+        JSON string with severity, confidence, and detection ratio
+    """
+    logger.info(f"[TOOL] get_ip_report: {ip_address}")
+    data = _vt_request(f"ip_addresses/{ip_address}")
+    result = _parse_vt_stats(data, ip_address, "ip")
+    return json.dumps(result, indent=2)
+
+
+def get_domain_report(domain: str) -> str:
+    """
+    Check domain reputation using VirusTotal.
+    
+    Args:
+        domain: The domain to analyze (e.g., "evil-site.com")
+    
+    Returns:
+        JSON string with severity, confidence, and detection ratio
+    """
+    logger.info(f"[TOOL] get_domain_report: {domain}")
+    data = _vt_request(f"domains/{domain}")
+    result = _parse_vt_stats(data, domain, "domain")
+    return json.dumps(result, indent=2)
+
+
+def get_hash_report(file_hash: str) -> str:
+    """
+    Check file hash reputation using VirusTotal.
+    
+    Args:
+        file_hash: The file hash to analyze (MD5, SHA1, or SHA256)
+    
+    Returns:
+        JSON string with severity, confidence, and detection ratio
+    """
+    logger.info(f"[TOOL] get_hash_report: {file_hash}")
+    data = _vt_request(f"files/{file_hash}")
+    result = _parse_vt_stats(data, file_hash, "hash")
+    return json.dumps(result, indent=2)
+
+
+def get_url_report(url: str) -> str:
+    """
+    Check URL reputation using VirusTotal.
+    
+    Args:
+        url: The URL to analyze
+    
+    Returns:
+        JSON string with severity, confidence, and detection ratio
+    """
+    import base64
+    logger.info(f"[TOOL] get_url_report: {url}")
+    url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
+    data = _vt_request(f"urls/{url_id}")
+    result = _parse_vt_stats(data, url, "url")
+    return json.dumps(result, indent=2)
 
 
 def run_agent_sync(agent, message: str) -> str:
@@ -83,68 +225,40 @@ class ThreatAnalysisAgent:
         self.config = GoogleSecurityMCPConfig()
         self.endpoint = endpoint or os.getenv("THREAT_AGENT_ENDPOINT", "http://localhost:8081")
         
-        # Initialize ADK agent
+        # Initialize ADK agent with tools
         try:
             self.agent = adk.Agent(
-            name="ThreatAnalysisAgent",
-            model="gemini-2.5-pro-preview-03-25",
-            instruction="""You are an expert Cyber Threat Intelligence Analyst with access to Google Threat Intelligence (GTI).
+                name="ThreatAnalysisAgent",
+                model="gemini-2.0-flash",
+                instruction="""You are a Cyber Threat Intelligence Analyst. Your job is to analyze security indicators using the available tools.
 
-Your responsibilities:
-1. Analyze security indicators (IPs, domains, file hashes, URLs) using GTI MCP server
-2. Determine threat severity and confidence levels
-3. Identify threat actors and malware families
-4. Map threats to MITRE ATT&CK techniques
-5. Provide actionable detection and mitigation recommendations
-6. Store findings in organizational threat intelligence memory
+WORKFLOW:
+1. When given an indicator, use the appropriate tool to check it:
+   - IP address → use get_ip_report
+   - Domain → use get_domain_report  
+   - File hash → use get_hash_report
+   - URL → use get_url_report
 
-Available Tools via GTI MCP Server:
-- search_iocs: Search for any indicator of compromise
-- get_file_report: Analyze file hashes (MD5, SHA1, SHA256)
-- get_ip_report: Check IP address reputation
-- get_domain_report: Analyze domain reputation
-- get_url_report: Scan URLs for malicious content
-- search_threat_actors: Get information about APT groups
-- search_malware_families: Research malware families
+2. Interpret the results and provide:
+   - Severity assessment (CRITICAL/HIGH/MEDIUM/LOW)
+   - Confidence level (0-100)
+   - Recommended actions
 
-Analysis Process:
-1. Use GTI to look up the indicator
-2. Check organizational memory for historical context
-3. Assess threat level based on:
-   - Detection ratio from GTI
-   - Historical activity
-   - Associated threat actors/campaigns
-   - MITRE ATT&CK techniques
+3. Always use the tools first, then analyze the results.
 
-Severity Levels:
-- CRITICAL: Active C2, ransomware, 0-day exploits (90-100% confidence)
-- HIGH: Known malware, phishing infrastructure (70-89% confidence)
-- MEDIUM: Suspicious activity, reconnaissance (50-69% confidence)
-- LOW: Potentially unwanted programs, low confidence (< 50%)
-
-Output Format:
+OUTPUT FORMAT:
 {
-  "indicator": "...",
+  "indicator": "the indicator analyzed",
   "indicator_type": "ip|domain|hash|url",
-  "threat_type": "malware|phishing|c2|exploit|...",
   "severity": "CRITICAL|HIGH|MEDIUM|LOW",
   "confidence": 0-100,
-  "gti_detection_ratio": "X/Y vendors",
-  "threat_actors": ["APT28", ...],
-  "malware_families": ["Emotet", ...],
-  "mitre_techniques": ["T1566.001", ...],
-  "first_seen": "timestamp",
-  "last_seen": "timestamp",
-  "recommendations": {
-    "detection": ["Monitor for X", "Alert on Y"],
-    "mitigation": ["Block at firewall", "Isolate endpoints"],
-    "priority": "immediate|high|medium|low"
-  }
-}
-
-Be thorough, accurate, and prioritize based on actual threat level."""
+  "threat_type": "malware|phishing|c2|benign",
+  "detection_ratio": "X/Y",
+  "recommendations": ["action1", "action2"]
+}""",
+                tools=[get_ip_report, get_domain_report, get_hash_report, get_url_report]
             )
-            logger.info("ADK agent initialized")
+            logger.info("ADK agent initialized with VirusTotal tools")
         except Exception as e:
             logger.error(f"Failed to initialize ADK agent: {e}", exc_info=True)
             raise

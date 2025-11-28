@@ -7,6 +7,9 @@ import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
 
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 from google import adk
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.run_config import RunConfig
@@ -19,6 +22,147 @@ from shared.a2a_server import A2AServer
 from shared.vertex_registry import VertexAIAgentRegistry
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# SOAR TOOLS - Simulated incident response actions
+# =============================================================================
+
+# In-memory case storage for demo
+_cases = {}
+_case_counter = [0]
+
+
+def create_case(title: str, severity: str, description: str = "") -> str:
+    """
+    Create a new incident case in the SOAR system.
+    
+    Args:
+        title: Title of the incident case
+        severity: Severity level (CRITICAL, HIGH, MEDIUM, LOW)
+        description: Description of the incident
+    
+    Returns:
+        JSON string with case ID and details
+    """
+    _case_counter[0] += 1
+    case_id = f"CASE-{datetime.now().strftime('%Y%m%d')}-{_case_counter[0]:04d}"
+    
+    case = {
+        "case_id": case_id,
+        "title": title,
+        "severity": severity,
+        "description": description,
+        "status": "Open",
+        "created_at": datetime.now().isoformat(),
+        "actions_taken": []
+    }
+    _cases[case_id] = case
+    
+    logger.info(f"[TOOL] create_case: {case_id} - {title}")
+    return json.dumps(case, indent=2)
+
+
+def block_ip(ip_address: str, case_id: str = "") -> str:
+    """
+    Block an IP address at the firewall.
+    
+    Args:
+        ip_address: The IP address to block
+        case_id: Optional case ID to associate with this action
+    
+    Returns:
+        JSON string with action result
+    """
+    logger.info(f"[TOOL] block_ip: {ip_address}")
+    
+    result = {
+        "action": "block_ip",
+        "ip_address": ip_address,
+        "status": "SUCCESS",
+        "message": f"IP {ip_address} blocked at perimeter firewall",
+        "case_id": case_id,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    if case_id and case_id in _cases:
+        _cases[case_id]["actions_taken"].append(f"Blocked IP: {ip_address}")
+    
+    return json.dumps(result, indent=2)
+
+
+def isolate_endpoint(hostname: str, case_id: str = "") -> str:
+    """
+    Isolate an endpoint from the network.
+    
+    Args:
+        hostname: The hostname or IP of the endpoint to isolate
+        case_id: Optional case ID to associate with this action
+    
+    Returns:
+        JSON string with action result
+    """
+    logger.info(f"[TOOL] isolate_endpoint: {hostname}")
+    
+    result = {
+        "action": "isolate_endpoint",
+        "hostname": hostname,
+        "status": "SUCCESS",
+        "message": f"Endpoint {hostname} isolated from network",
+        "case_id": case_id,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    if case_id and case_id in _cases:
+        _cases[case_id]["actions_taken"].append(f"Isolated endpoint: {hostname}")
+    
+    return json.dumps(result, indent=2)
+
+
+def disable_user(username: str, case_id: str = "") -> str:
+    """
+    Disable a user account.
+    
+    Args:
+        username: The username to disable
+        case_id: Optional case ID to associate with this action
+    
+    Returns:
+        JSON string with action result
+    """
+    logger.info(f"[TOOL] disable_user: {username}")
+    
+    result = {
+        "action": "disable_user",
+        "username": username,
+        "status": "SUCCESS",
+        "message": f"User account {username} disabled and sessions revoked",
+        "case_id": case_id,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    if case_id and case_id in _cases:
+        _cases[case_id]["actions_taken"].append(f"Disabled user: {username}")
+    
+    return json.dumps(result, indent=2)
+
+
+def get_case_status(case_id: str) -> str:
+    """
+    Get the status of an incident case.
+    
+    Args:
+        case_id: The case ID to look up
+    
+    Returns:
+        JSON string with case details
+    """
+    logger.info(f"[TOOL] get_case_status: {case_id}")
+    
+    if case_id in _cases:
+        return json.dumps(_cases[case_id], indent=2)
+    else:
+        return json.dumps({"error": f"Case {case_id} not found"}, indent=2)
 
 
 def run_agent_sync(agent, message: str) -> str:
@@ -73,95 +217,48 @@ class IncidentResponseAgent:
     
     def __init__(self, project_id: str, endpoint: Optional[str] = None):
         self.project_id = project_id
-        self.memory = IncidentMemory(project_id)
+        try:
+            self.memory = IncidentMemory(project_id)
+        except Exception as e:
+            logger.warning(f"Failed to initialize memory: {e}")
+            self.memory = None
         self.config = GoogleSecurityMCPConfig()
         self.endpoint = endpoint or os.getenv("INCIDENT_AGENT_ENDPOINT", "http://localhost:8082")
         
-        # Initialize ADK agent
+        # Initialize ADK agent with SOAR tools
         self.agent = adk.Agent(
             name="IncidentResponseAgent",
-            model="gemini-2.5-pro-preview-03-25",
-            instruction="""You are an expert Incident Response specialist with access to Chronicle SecOps and SOAR platforms.
+            model="gemini-2.0-flash",
+            instruction="""You are an Incident Response specialist. Your job is to handle security incidents using the available tools.
 
-Your responsibilities:
-1. Investigate security incidents using Chronicle SecOps
-2. Create and manage cases in Chronicle SOAR
-3. Execute automated response playbooks
-4. Coordinate containment, eradication, and recovery
-5. Document incident timeline and evidence
-6. Maintain incident memory for organizational learning
+WORKFLOW:
+1. When given a threat analysis, first create a case using create_case
+2. Based on severity, take appropriate actions:
+   - CRITICAL/HIGH: Block IPs, isolate endpoints, disable users
+   - MEDIUM: Create case and monitor
+   - LOW: Document only
 
-Available MCP Servers:
+AVAILABLE TOOLS:
+- create_case: Create an incident case
+- block_ip: Block malicious IP at firewall
+- isolate_endpoint: Isolate compromised endpoint
+- disable_user: Disable compromised user account
+- get_case_status: Check case status
 
-Chronicle SecOps (SIEM):
-- search_security_events: Query security logs and events
-- get_security_alerts: Retrieve active alerts
-- lookup_entity: Investigate IPs, domains, hashes
-- list_security_rules: Review detection rules
-- get_ioc_matches: Find IOC matches in environment
-- get_threat_intel: AI-powered threat intelligence
+RESPONSE FORMAT:
+{
+  "incident_id": "case ID",
+  "severity": "CRITICAL|HIGH|MEDIUM|LOW",
+  "actions_taken": ["action1", "action2"],
+  "status": "Open|In Progress|Resolved",
+  "recommendations": ["next steps"]
+}
 
-Chronicle SOAR:
-- list_cases: View all security cases
-- create_case: Create incident case
-- update_case: Update case status and notes
-- run_playbook: Execute automated response
-- get_playbook_results: Check playbook execution
-
-Incident Response Process:
-
-1. IDENTIFICATION
-   - Use Chronicle SecOps to search for related events
-   - Look up affected entities
-   - Correlate with existing alerts
-   - Determine scope and impact
-
-2. CONTAINMENT
-   - Create SOAR case immediately
-   - Execute appropriate playbooks:
-     * isolate_endpoint: Network isolation
-     * block_ip: Firewall blocking
-     * quarantine_file: File quarantine
-     * disable_account: Account suspension
-   - Document containment actions
-
-3. INVESTIGATION
-   - Search Chronicle for event timeline
-   - Identify affected assets
-   - Determine attack vector
-   - Assess data exposure
-
-4. ERADICATION
-   - Remove malicious artifacts
-   - Close attack vectors
-   - Verify threat removal
-
-5. RECOVERY
-   - Restore services
-   - Monitor for re-infection
-   - Validate security controls
-
-6. DOCUMENTATION
-   - Update SOAR case with findings
-   - Store incident in memory
-   - Create lessons learned
-
-Severity Guidelines:
-- CRITICAL: Active breach, ransomware, C2 communication
-- HIGH: Malware infection, privilege escalation
-- MEDIUM: Policy violations, suspicious activity
-- LOW: False positives, informational
-
-Response Time Requirements:
-- CRITICAL: Immediate (< 15 minutes)
-- HIGH: Urgent (< 1 hour)
-- MEDIUM: Same day (< 8 hours)
-- LOW: Next business day
-
-Always prioritize containment to prevent further damage."""
+Always create a case first, then take containment actions for HIGH/CRITICAL threats.""",
+            tools=[create_case, block_ip, isolate_endpoint, disable_user, get_case_status]
         )
         
-        logger.info("✓ Incident Response Agent initialized")
+        logger.info("✓ Incident Response Agent initialized with SOAR tools")
     
     def handle_incident(self, threat_analysis: dict, context: str = "") -> dict:
         """Handle security incident using Chronicle SecOps and SOAR"""
