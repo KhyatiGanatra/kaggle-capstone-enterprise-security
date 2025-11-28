@@ -1,9 +1,7 @@
 """
 Multi-Agent Security System - Web UI
 =====================================
-A modern, elegant interface for the security multi-agent system.
-
-Run with: streamlit run ui.py
+A futuristic, glass-morphism interface for the security multi-agent system.
 """
 
 import os
@@ -25,519 +23,246 @@ from agents.incident_agent import (
 )
 
 # =============================================================================
+# ICONS (Lucide Style SVGs)
+# =============================================================================
+
+def get_icon(name, size=20, color="currentColor"):
+    icons = {
+        "shield": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>""",
+        "activity": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>""",
+        "sparkles": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>""",
+        "search": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>""",
+        "lock": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>""",
+        "user-x": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="17" y1="8" x2="22" y2="13"></line><line x1="22" y1="8" x2="17" y2="13"></line></svg>""",
+        "alert-triangle": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>""",
+        "check-circle": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>""",
+        "file-text": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>""",
+        "zap": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>""",
+        "logo": f"""<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><circle cx="12" cy="12" r="3"></circle></svg>"""
+    }
+    return icons.get(name, "")
+
+# =============================================================================
 # PAGE CONFIG
 # =============================================================================
 
 st.set_page_config(
     page_title="Sentinel",
-    page_icon="◆",
+    page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
 # =============================================================================
-# CUSTOM CSS - Modern Elegant Design
+# CUSTOM CSS
 # =============================================================================
 
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
     
-    /* Root variables */
+    /* Variables */
     :root {
-        --bg-primary: #0a0a0f;
-        --bg-secondary: #12121a;
-        --bg-card: rgba(22, 22, 32, 0.8);
-        --bg-hover: rgba(255, 255, 255, 0.03);
-        --border-subtle: rgba(255, 255, 255, 0.06);
-        --border-accent: rgba(99, 102, 241, 0.4);
-        --text-primary: #f4f4f5;
+        --bg-app: #0e0e11;
+        --bg-panel: rgba(24, 24, 27, 0.7);
+        --bg-panel-hover: rgba(39, 39, 42, 0.8);
+        --border-color: rgba(255, 255, 255, 0.08);
+        --accent-primary: #6366f1; /* Indigo */
+        --accent-glow: rgba(99, 102, 241, 0.15);
+        --text-primary: #ededed;
         --text-secondary: #a1a1aa;
-        --text-muted: #52525b;
-        --accent-primary: #818cf8;
-        --accent-green: #34d399;
-        --accent-amber: #fbbf24;
-        --accent-red: #f87171;
-        --accent-cyan: #22d3ee;
+        --font-sans: 'Inter', sans-serif;
+        --font-mono: 'JetBrains Mono', monospace;
+        
+        --severity-critical: #ef4444;
+        --severity-high: #f97316;
+        --severity-medium: #eab308;
+        --severity-low: #10b981;
     }
     
-    /* Global reset */
+    /* Reset & Base */
     .stApp {
-        background: var(--bg-primary);
-        font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    
-    .stApp > header {
-        background: transparent;
-    }
-    
-    /* Hide streamlit elements */
-    #MainMenu, footer, .stDeployButton {
-        display: none;
-    }
-    
-    /* Main container */
-    .main .block-container {
-        padding: 2rem 3rem;
-        max-width: 1400px;
-    }
-    
-    /* Typography */
-    h1, h2, h3, h4, h5, h6 {
-        font-family: 'Sora', sans-serif !important;
-        font-weight: 600;
+        background-color: var(--bg-app);
+        font-family: var(--font-sans);
         color: var(--text-primary);
     }
     
-    p, span, div {
-        color: var(--text-secondary);
+    /* Header removal */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Typography */
+    h1, h2, h3 {
+        font-family: var(--font-sans);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--text-primary);
     }
     
-    /* Custom header */
-    .header-container {
+    p {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+    
+    /* Header Container */
+    .header-wrapper {
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        padding: 1.5rem 0 2.5rem 0;
-        border-bottom: 1px solid var(--border-subtle);
+        align-items: center;
+        padding: 1rem 0 2rem 0;
+        border-bottom: 1px solid var(--border-color);
         margin-bottom: 2rem;
     }
     
-    .logo-section {
+    .brand-section {
         display: flex;
         align-items: center;
         gap: 1rem;
     }
     
-    .logo-icon {
-        width: 48px;
-        height: 48px;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-        color: white;
-        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.25);
+    .brand-icon {
+        color: var(--accent-primary);
+        filter: drop-shadow(0 0 8px var(--accent-glow));
     }
     
-    .logo-text h1 {
-        font-size: 1.75rem;
-        font-weight: 700;
-        margin: 0;
-        background: linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        letter-spacing: -0.03em;
-    }
-    
-    .logo-text p {
-        font-size: 0.85rem;
-        color: var(--text-muted);
-        margin: 0;
-        font-weight: 400;
-    }
-    
-    .status-pills {
-        display: flex;
-        gap: 0.75rem;
-    }
-    
-    .status-pill {
+    .status-badge {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 100px;
+        padding: 0.4rem 0.8rem;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--border-color);
+        border-radius: 99px;
         font-size: 0.8rem;
         font-weight: 500;
+        color: var(--text-secondary);
+        transition: all 0.2s;
     }
     
     .status-dot {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
-        animation: pulse 2s infinite;
+        background-color: var(--text-secondary);
     }
     
     .status-dot.active {
-        background: var(--accent-green);
-        box-shadow: 0 0 12px var(--accent-green);
+        background-color: #10b981;
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
     }
     
-    .status-dot.inactive {
-        background: var(--text-muted);
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-    }
-    
-    /* Tabs styling */
+    /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
-        background: var(--bg-secondary);
-        border-radius: 16px;
-        padding: 0.5rem;
-        gap: 0.5rem;
-        border: 1px solid var(--border-subtle);
+        background-color: transparent;
+        gap: 2rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0;
     }
     
     .stTabs [data-baseweb="tab"] {
-        background: transparent;
-        border-radius: 12px;
-        padding: 0.75rem 1.5rem;
-        font-family: 'Sora', sans-serif;
-        font-weight: 500;
-        font-size: 0.9rem;
-        color: var(--text-secondary);
+        background-color: transparent;
         border: none;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background: var(--bg-hover);
-        color: var(--text-primary);
+        color: var(--text-secondary);
+        font-family: var(--font-sans);
+        font-weight: 500;
+        padding: 0.8rem 0;
     }
     
     .stTabs [aria-selected="true"] {
-        background: var(--bg-card) !important;
-        color: var(--text-primary) !important;
-        border: 1px solid var(--border-subtle) !important;
+        color: var(--text-primary);
+        border-bottom: 2px solid var(--accent-primary);
     }
     
-    .stTabs [data-baseweb="tab-highlight"] {
-        display: none;
-    }
-    
-    .stTabs [data-baseweb="tab-border"] {
-        display: none;
-    }
-    
-    /* Cards */
-    .glass-card {
-        background: var(--bg-card);
-        backdrop-filter: blur(20px);
-        border: 1px solid var(--border-subtle);
-        border-radius: 20px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        transition: all 0.3s ease;
-    }
-    
-    .glass-card:hover {
-        border-color: var(--border-accent);
-        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.1);
-    }
-    
-    /* Input styling */
+    /* Inputs */
     .stTextInput > div > div {
-        background: var(--bg-secondary) !important;
-        border: 1px solid var(--border-subtle) !important;
-        border-radius: 12px !important;
-        font-family: 'JetBrains Mono', monospace !important;
-        color: var(--text-primary) !important;
+        background-color: rgba(255,255,255,0.02);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
     }
     
     .stTextInput > div > div:focus-within {
-        border-color: var(--accent-primary) !important;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
-    }
-    
-    .stTextInput input {
-        color: var(--text-primary) !important;
-        font-family: 'JetBrains Mono', monospace !important;
-    }
-    
-    .stTextInput input::placeholder {
-        color: var(--text-muted) !important;
-    }
-    
-    .stTextArea textarea {
-        background: var(--bg-secondary) !important;
-        border: 1px solid var(--border-subtle) !important;
-        border-radius: 12px !important;
-        color: var(--text-primary) !important;
-        font-family: 'Sora', sans-serif !important;
-    }
-    
-    /* Select box */
-    .stSelectbox > div > div {
-        background: var(--bg-secondary) !important;
-        border: 1px solid var(--border-subtle) !important;
-        border-radius: 12px !important;
-    }
-    
-    .stSelectbox [data-baseweb="select"] > div {
-        background: var(--bg-secondary) !important;
-        border-color: var(--border-subtle) !important;
+        border-color: var(--accent-primary);
+        background-color: rgba(255,255,255,0.05);
     }
     
     /* Buttons */
     .stButton > button {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 12px !important;
-        padding: 0.75rem 2rem !important;
-        font-family: 'Sora', sans-serif !important;
-        font-weight: 600 !important;
-        font-size: 0.9rem !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3) !important;
+        background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s;
     }
     
     .stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4) !important;
+        border-color: var(--text-secondary);
+        background: rgba(255,255,255,0.08);
     }
     
-    .stButton > button:active {
-        transform: translateY(0) !important;
+    /* Primary Action Button override (Streamlit specific) */
+    div[data-testid="stVerticalBlock"] > div > div > div > div > button[kind="primary"] {
+        background: var(--accent-primary) !important;
+        border: none !important;
+        box-shadow: 0 0 15px var(--accent-glow);
     }
     
-    /* Secondary button style */
-    .secondary-btn > button {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border-subtle) !important;
-        box-shadow: none !important;
+    /* Glass Cards */
+    .glass-panel {
+        background: var(--bg-panel);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: transform 0.2s, border-color 0.2s;
     }
     
-    .secondary-btn > button:hover {
-        border-color: var(--accent-primary) !important;
-        background: var(--bg-hover) !important;
+    .glass-panel:hover {
+        border-color: rgba(255,255,255,0.15);
     }
     
-    /* Metrics */
-    .metric-container {
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 16px;
-        padding: 1.25rem;
-        text-align: center;
-        transition: all 0.3s ease;
-    }
-    
-    .metric-container:hover {
-        border-color: var(--border-accent);
-        transform: translateY(-2px);
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--text-primary);
-        font-family: 'JetBrains Mono', monospace;
-    }
-    
-    .metric-label {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        margin-top: 0.5rem;
-    }
-    
-    /* Severity badges */
-    .severity-badge {
+    /* Severity Badges */
+    .badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        border-radius: 100px;
-        font-size: 0.8rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
         font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+    
+    .badge-critical { background: rgba(239, 68, 68, 0.1); color: var(--severity-critical); border: 1px solid rgba(239, 68, 68, 0.2); }
+    .badge-high { background: rgba(249, 115, 22, 0.1); color: var(--severity-high); border: 1px solid rgba(249, 115, 22, 0.2); }
+    .badge-medium { background: rgba(234, 179, 8, 0.1); color: var(--severity-medium); border: 1px solid rgba(234, 179, 8, 0.2); }
+    .badge-low { background: rgba(16, 185, 129, 0.1); color: var(--severity-low); border: 1px solid rgba(16, 185, 129, 0.2); }
+    
+    /* Metrics */
+    .metric-box {
+        text-align: center;
+    }
+    .metric-val {
+        font-family: var(--font-mono);
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    .metric-lbl {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        margin-top: 0.25rem;
     }
-    
-    .severity-critical {
-        background: rgba(248, 113, 113, 0.15);
-        color: var(--accent-red);
-        border: 1px solid rgba(248, 113, 113, 0.3);
-    }
-    
-    .severity-high {
-        background: rgba(251, 191, 36, 0.15);
-        color: var(--accent-amber);
-        border: 1px solid rgba(251, 191, 36, 0.3);
-    }
-    
-    .severity-medium {
-        background: rgba(34, 211, 238, 0.15);
-        color: var(--accent-cyan);
-        border: 1px solid rgba(34, 211, 238, 0.3);
-    }
-    
-    .severity-low {
-        background: rgba(52, 211, 153, 0.15);
-        color: var(--accent-green);
-        border: 1px solid rgba(52, 211, 153, 0.3);
-    }
-    
-    /* Results card */
-    .results-card {
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-subtle);
-        border-radius: 20px;
-        padding: 2rem;
-        margin: 1.5rem 0;
-    }
-    
-    /* Action grid */
-    .action-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 16px;
-        padding: 1.5rem;
-        height: 100%;
-        transition: all 0.3s ease;
-    }
-    
-    .action-card:hover {
-        border-color: var(--border-accent);
-        background: rgba(99, 102, 241, 0.05);
-    }
-    
-    .action-icon {
-        width: 48px;
-        height: 48px;
-        background: var(--bg-secondary);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-        margin-bottom: 1rem;
-    }
-    
-    /* Expander */
-    .streamlit-expanderHeader {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border-subtle) !important;
-        border-radius: 12px !important;
-        font-family: 'Sora', sans-serif !important;
-    }
-    
-    .streamlit-expanderContent {
-        background: var(--bg-secondary) !important;
-        border: 1px solid var(--border-subtle) !important;
-        border-top: none !important;
-        border-radius: 0 0 12px 12px !important;
-    }
-    
-    /* JSON viewer */
-    .stJson {
-        background: var(--bg-primary) !important;
-        border-radius: 12px !important;
-        font-family: 'JetBrains Mono', monospace !important;
-    }
-    
-    /* Alert boxes */
-    .stAlert {
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border-subtle) !important;
-        border-radius: 12px !important;
-    }
-    
-    .stSuccess {
-        border-left: 4px solid var(--accent-green) !important;
-    }
-    
-    .stWarning {
-        border-left: 4px solid var(--accent-amber) !important;
-    }
-    
-    .stError {
-        border-left: 4px solid var(--accent-red) !important;
-    }
-    
-    /* History item */
-    .history-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 1rem 1.5rem;
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 12px;
-        margin: 0.5rem 0;
-        transition: all 0.2s ease;
-    }
-    
-    .history-item:hover {
-        border-color: var(--border-accent);
-        background: var(--bg-hover);
-    }
-    
-    /* Incident row */
-    .incident-row {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 1rem 1.5rem;
-        background: var(--bg-card);
-        border: 1px solid var(--border-subtle);
-        border-radius: 12px;
-        margin: 0.75rem 0;
-    }
-    
-    /* Empty state */
-    .empty-state {
-        text-align: center;
-        padding: 4rem 2rem;
-        color: var(--text-muted);
-    }
-    
-    .empty-state-icon {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        opacity: 0.5;
-    }
-    
-    /* Footer */
-    .footer {
-        text-align: center;
-        padding: 2rem;
-        margin-top: 3rem;
-        border-top: 1px solid var(--border-subtle);
-        color: var(--text-muted);
-        font-size: 0.85rem;
-    }
-    
-    /* Streamlit overrides */
-    .st-emotion-cache-1v0mbdj {
-        margin-top: 1rem;
-    }
-    
-    /* Hide default metric styling */
-    [data-testid="stMetricValue"] {
-        font-family: 'JetBrains Mono', monospace !important;
-    }
-    
-    [data-testid="stMetricLabel"] {
-        color: var(--text-muted) !important;
-    }
-    
-    /* Divider */
-    hr {
-        border-color: var(--border-subtle) !important;
-        margin: 2rem 0 !important;
-    }
+
 </style>
 """, unsafe_allow_html=True)
-
-# =============================================================================
-# SESSION STATE
-# =============================================================================
-
-if 'analysis_history' not in st.session_state:
-    st.session_state.analysis_history = []
-
-if 'incidents' not in st.session_state:
-    st.session_state.incidents = []
 
 # =============================================================================
 # HEADER
@@ -549,349 +274,240 @@ vt_active = vt_key and not vt_key.startswith("your-")
 gemini_active = gemini_key and not gemini_key.startswith("your-")
 
 st.markdown(f"""
-<div class="header-container">
-    <div class="logo-section">
-        <div class="logo-icon">◆</div>
-        <div class="logo-text">
-            <h1>Sentinel</h1>
-            <p>Security Intelligence Platform</p>
+<div class="header-wrapper">
+    <div class="brand-section">
+        <div class="brand-icon">{get_icon("logo", size=32, color="#6366f1")}</div>
+        <div>
+            <h1 style="font-size: 1.25rem; margin: 0;">Sentinel</h1>
+            <p style="font-size: 0.8rem; margin: 0; opacity: 0.7;">Enterprise Security Intelligence</p>
         </div>
     </div>
-    <div class="status-pills">
-        <div class="status-pill">
-            <div class="status-dot {'active' if vt_active else 'inactive'}"></div>
-            <span style="color: var(--text-secondary);">VirusTotal</span>
+    <div style="display: flex; gap: 1rem;">
+        <div class="status-badge">
+            <div class="status-dot {'active' if vt_active else ''}"></div>
+            VirusTotal
         </div>
-        <div class="status-pill">
-            <div class="status-dot {'active' if gemini_active else 'inactive'}"></div>
-            <span style="color: var(--text-secondary);">Gemini AI</span>
+        <div class="status-badge">
+            <div class="status-dot {'active' if gemini_active else ''}"></div>
+            Gemini AI
         </div>
-        <div class="status-pill">
-            <span style="color: var(--text-muted);">Analyzed: {len(st.session_state.analysis_history)}</span>
+        <div class="status-badge">
+            {get_icon("activity", size=14)}
+            {len(st.session_state.analysis_history)} Ops
         </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 # =============================================================================
-# MAIN CONTENT
+# MAIN TABS
 # =============================================================================
 
-tab1, tab2, tab3 = st.tabs(["◈  Threat Analysis", "◈  Incident Response", "◈  Activity Log"])
+tab_threat, tab_incident, tab_history = st.tabs(["Threat Analysis", "Incident Response", "Activity Log"])
 
-# -----------------------------------------------------------------------------
-# TAB 1: THREAT ANALYSIS
-# -----------------------------------------------------------------------------
+# --- THREAT ANALYSIS ---
+with tab_threat:
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Input Area
+    with st.container():
+        c1, c2, c3 = st.columns([5, 2, 1])
+        with c1:
+            indicator = st.text_input("Indicator", placeholder="IP, Domain, Hash...", label_visibility="collapsed")
+        with c2:
+            indicator_type = st.selectbox("Type", ["ip", "domain", "hash", "url"], label_visibility="collapsed")
+        with c3:
+            analyze = st.button("Analyze", type="primary", use_container_width=True)
 
-with tab1:
-    st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
-    
-    # Search section
-    col1, col2, col3 = st.columns([4, 1, 1])
-    
-    with col1:
-        indicator = st.text_input(
-            "Indicator",
-            placeholder="Enter IP address, domain, file hash, or URL...",
-            label_visibility="collapsed"
-        )
-    
-    with col2:
-        indicator_type = st.selectbox(
-            "Type",
-            ["ip", "domain", "hash", "url"],
-            label_visibility="collapsed"
-        )
-    
-    with col3:
-        analyze_button = st.button("Analyze", type="primary", use_container_width=True)
-    
-    if analyze_button and indicator:
-        with st.spinner(""):
-            # Call the appropriate tool
-            if indicator_type == "ip":
-                result_json = get_ip_report(indicator)
-            elif indicator_type == "domain":
-                result_json = get_domain_report(indicator)
-            elif indicator_type == "hash":
-                result_json = get_hash_report(indicator)
-            else:
-                result_json = get_url_report(indicator)
+    if analyze and indicator:
+        with st.spinner(" querying threat intelligence..."):
+            if indicator_type == "ip": result_json = get_ip_report(indicator)
+            elif indicator_type == "domain": result_json = get_domain_report(indicator)
+            elif indicator_type == "hash": result_json = get_hash_report(indicator)
+            else: result_json = get_url_report(indicator)
             
             result = json.loads(result_json)
             result['analyzed_at'] = datetime.now().isoformat()
-            
-            # Store in history
             st.session_state.analysis_history.insert(0, result)
-        
-        # Results
-        st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
-        
-        severity = result.get('severity', 'UNKNOWN')
-        severity_class = severity.lower() if severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] else 'medium'
+
+        # Result Display
+        sev = result.get('severity', 'UNKNOWN').upper()
+        sev_cls = f"badge-{sev.lower()}" if sev in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] else "badge-low"
         
         st.markdown(f"""
-        <div class="results-card">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
+        <div class="glass-panel" style="margin-top: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
                 <div>
-                    <span class="severity-badge severity-{severity_class}">{severity}</span>
-                    <h2 style="margin: 1rem 0 0.5rem 0; font-size: 1.5rem; color: var(--text-primary);">{result.get('indicator', indicator)}</h2>
-                    <p style="color: var(--text-muted); font-size: 0.9rem;">Analyzed at {datetime.now().strftime('%H:%M:%S')} • {'Live Data' if not result.get('source', '').endswith('(MOCK)') else 'Demo Mode'}</p>
+                    <span class="badge {sev_cls}">{sev}</span>
+                    <h2 style="margin: 0.5rem 0; font-family: 'JetBrains Mono'; font-size: 1.5rem;">{result.get('indicator', indicator)}</h2>
+                    <p style="font-size: 0.9rem;">Analysis Source: {'VirusTotal (Live)' if not result.get('source', '').endswith('(MOCK)') else 'Simulation Mode'}</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-family: 'JetBrains Mono'; font-size: 0.8rem; color: var(--text-secondary);">{datetime.now().strftime('%H:%M:%S')} UTC</div>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <div class="metric-box">
+                    <div class="metric-val">{result.get('confidence', 0)}%</div>
+                    <div class="metric-lbl">Confidence</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-val">{result.get('detection_ratio', 'N/A')}</div>
+                    <div class="metric-lbl">Detections</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-val">{result.get('indicator_type', indicator_type).upper()}</div>
+                    <div class="metric-lbl">Type</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-val">{get_icon("activity", size=20)}</div>
+                    <div class="metric-lbl">Active</div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Metrics row
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-container">
-                <div class="metric-value">{result.get('confidence', 0)}%</div>
-                <div class="metric-label">Confidence</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-container">
-                <div class="metric-value">{result.get('detection_ratio', 'N/A')}</div>
-                <div class="metric-label">Detections</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown(f"""
-            <div class="metric-container">
-                <div class="metric-value">{result.get('indicator_type', indicator_type).upper()}</div>
-                <div class="metric-label">Type</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            source_label = "VT" if not result.get('source', '').endswith('(MOCK)') else "MOCK"
-            st.markdown(f"""
-            <div class="metric-container">
-                <div class="metric-value">{source_label}</div>
-                <div class="metric-label">Source</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Details expander
-        st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
-        with st.expander("View Raw Intelligence Data"):
+        # Raw Data
+        with st.expander("View Raw JSON Payload"):
             st.json(result)
-        
-        # Quick actions for high severity
-        if severity in ['CRITICAL', 'HIGH']:
-            st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
-            st.warning(f"⚡ **Elevated threat level detected.** Recommended: Take immediate action.")
-            
-            col1, col2, col3, _ = st.columns([1, 1, 1, 1])
-            
-            with col1:
-                if st.button("🚫  Block Indicator", use_container_width=True):
+
+        # Actions if High Severity
+        if sev in ['CRITICAL', 'HIGH']:
+            st.markdown("### Recommended Actions")
+            ac1, ac2, ac3 = st.columns(3)
+            with ac1:
+                if st.button("Block Indicator", use_container_width=True):
                     if indicator_type == "ip":
-                        action_result = json.loads(block_ip(indicator))
-                        st.success(f"✓ {action_result['message']}")
-            
-            with col2:
-                if st.button("📋  Create Case", use_container_width=True):
-                    case_result = json.loads(create_case(
-                        f"Threat Alert: {indicator}",
-                        severity,
-                        f"Auto-generated from threat analysis"
-                    ))
-                    st.session_state.incidents.insert(0, case_result)
-                    st.success(f"✓ Case {case_result['case_id']} created")
-            
-            with col3:
-                if st.button("📤  Escalate", use_container_width=True):
-                    st.info("Escalation notification sent to SOC team")
-    
-    elif not indicator and analyze_button:
-        st.error("Please enter an indicator to analyze")
+                        res = json.loads(block_ip(indicator))
+                        st.success(f"Action Executed: {res.get('message')}")
+            with ac2:
+                if st.button("Create Incident Case", use_container_width=True):
+                    res = json.loads(create_case(f"Threat: {indicator}", sev, "Auto-created from analysis"))
+                    st.session_state.incidents.insert(0, res)
+                    st.success(f"Case {res.get('case_id')} Created")
+            with ac3:
+                st.button("Escalate to SOC", disabled=True, use_container_width=True)
 
-# -----------------------------------------------------------------------------
-# TAB 2: INCIDENT RESPONSE
-# -----------------------------------------------------------------------------
+# --- INCIDENT RESPONSE ---
+with tab_incident:
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    with st.container():
+        st.markdown("#### Create Incident")
+        ic1, ic2 = st.columns([3, 1])
+        with ic1: title = st.text_input("Title", placeholder="e.g. Malware Outbreak", label_visibility="collapsed")
+        with ic2: severity = st.selectbox("Severity", ["CRITICAL", "HIGH", "MEDIUM", "LOW"], label_visibility="collapsed")
+        desc = st.text_area("Description", placeholder="Incident details...", label_visibility="collapsed")
+        
+        if st.button("Initialize Case", type="primary"):
+            if title:
+                res = json.loads(create_case(title, severity, desc))
+                st.session_state.incidents.insert(0, res)
+                st.success(f"Case {res.get('case_id')} Initialized")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("#### Response Playbooks")
+    
+    rc1, rc2, rc3 = st.columns(3)
+    
+    # Card 1: Block
+    with rc1:
+        st.markdown(f"""
+        <div class="glass-panel" style="text-align: center;">
+            <div style="color: var(--text-primary); margin-bottom: 1rem;">{get_icon("shield", size=32)}</div>
+            <h3 style="font-size: 1rem;">Network Block</h3>
+            <p style="font-size: 0.8rem;">Block IP at firewall perimeter</p>
+        </div>
+        """, unsafe_allow_html=True)
+        blk_ip = st.text_input("IP Address", key="act_blk")
+        if st.button("Execute Block", use_container_width=True):
+            if blk_ip: st.success(json.loads(block_ip(blk_ip))['message'])
 
-with tab2:
-    st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
-    
-    # Create incident section
-    st.markdown("#### New Incident Case")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        incident_title = st.text_input("Title", placeholder="Brief description of the incident", label_visibility="collapsed")
-    
-    with col2:
-        incident_severity = st.selectbox("Sev", ["CRITICAL", "HIGH", "MEDIUM", "LOW"], label_visibility="collapsed")
-    
-    incident_desc = st.text_area("Description", placeholder="Detailed incident description...", height=100, label_visibility="collapsed")
-    
-    if st.button("Create Case", type="primary"):
-        if incident_title:
-            case_result = json.loads(create_case(incident_title, incident_severity, incident_desc))
-            st.session_state.incidents.insert(0, case_result)
-            st.success(f"✓ Case {case_result['case_id']} created successfully")
-        else:
-            st.error("Please provide a title")
-    
-    st.markdown("---")
-    
-    # Response actions
-    st.markdown("#### Response Actions")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div class="action-card">
-            <div class="action-icon">🚫</div>
-            <h4 style="color: var(--text-primary); margin: 0 0 0.5rem 0;">Block IP</h4>
-            <p style="font-size: 0.85rem; margin-bottom: 1rem;">Add IP to firewall blocklist</p>
+    # Card 2: Isolate
+    with rc2:
+        st.markdown(f"""
+        <div class="glass-panel" style="text-align: center;">
+            <div style="color: var(--text-primary); margin-bottom: 1rem;">{get_icon("lock", size=32)}</div>
+            <h3 style="font-size: 1rem;">Host Isolation</h3>
+            <p style="font-size: 0.8rem;">Disconnect host from network</p>
         </div>
         """, unsafe_allow_html=True)
-        block_ip_input = st.text_input("IP Address", placeholder="x.x.x.x", key="block_ip", label_visibility="collapsed")
-        if st.button("Execute", key="block_btn", use_container_width=True):
-            if block_ip_input:
-                result = json.loads(block_ip(block_ip_input))
-                st.success(f"✓ {result['message']}")
-    
-    with col2:
-        st.markdown("""
-        <div class="action-card">
-            <div class="action-icon">🔒</div>
-            <h4 style="color: var(--text-primary); margin: 0 0 0.5rem 0;">Isolate Endpoint</h4>
-            <p style="font-size: 0.85rem; margin-bottom: 1rem;">Network isolation for host</p>
+        iso_host = st.text_input("Hostname", key="act_iso")
+        if st.button("Isolate Host", use_container_width=True):
+            if iso_host: st.success(json.loads(isolate_endpoint(iso_host))['message'])
+
+    # Card 3: Disable User
+    with rc3:
+        st.markdown(f"""
+        <div class="glass-panel" style="text-align: center;">
+            <div style="color: var(--text-primary); margin-bottom: 1rem;">{get_icon("user-x", size=32)}</div>
+            <h3 style="font-size: 1rem;">Suspend User</h3>
+            <p style="font-size: 0.8rem;">Revoke IAM credentials</p>
         </div>
         """, unsafe_allow_html=True)
-        isolate_input = st.text_input("Hostname", placeholder="workstation-01", key="isolate", label_visibility="collapsed")
-        if st.button("Execute", key="isolate_btn", use_container_width=True):
-            if isolate_input:
-                result = json.loads(isolate_endpoint(isolate_input))
-                st.success(f"✓ {result['message']}")
-    
-    with col3:
-        st.markdown("""
-        <div class="action-card">
-            <div class="action-icon">👤</div>
-            <h4 style="color: var(--text-primary); margin: 0 0 0.5rem 0;">Disable User</h4>
-            <p style="font-size: 0.85rem; margin-bottom: 1rem;">Suspend user account access</p>
-        </div>
-        """, unsafe_allow_html=True)
-        disable_input = st.text_input("Username", placeholder="jdoe", key="disable", label_visibility="collapsed")
-        if st.button("Execute", key="disable_btn", use_container_width=True):
-            if disable_input:
-                result = json.loads(disable_user(disable_input))
-                st.success(f"✓ {result['message']}")
-    
-    # Active incidents
-    st.markdown("---")
-    st.markdown("#### Active Cases")
-    
+        dis_user = st.text_input("Username", key="act_dis")
+        if st.button("Suspend User", use_container_width=True):
+            if dis_user: st.success(json.loads(disable_user(dis_user))['message'])
+
+    # Active Incidents
     if st.session_state.incidents:
-        for incident in st.session_state.incidents[:5]:
-            severity = incident.get('severity', 'MEDIUM')
-            severity_class = severity.lower()
-            
+        st.markdown("#### Active Operations")
+        for inc in st.session_state.incidents[:5]:
+            isev = inc.get('severity', 'MEDIUM')
+            isev_cls = f"badge-{isev.lower()}"
             st.markdown(f"""
-            <div class="incident-row">
-                <span class="severity-badge severity-{severity_class}">{severity}</span>
-                <div style="flex: 1;">
-                    <strong style="color: var(--text-primary);">{incident.get('case_id', 'Unknown')}</strong>
-                    <span style="color: var(--text-muted); margin-left: 1rem;">{incident.get('title', 'Untitled')}</span>
-                </div>
-                <span style="color: var(--text-muted); font-size: 0.85rem;">{incident.get('status', 'Open')}</span>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="empty-state">
-            <div class="empty-state-icon">📋</div>
-            <p>No active cases</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-# -----------------------------------------------------------------------------
-# TAB 3: ACTIVITY LOG
-# -----------------------------------------------------------------------------
-
-with tab3:
-    st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.markdown("#### Threat Analysis Log")
-        
-        if st.session_state.analysis_history:
-            for analysis in st.session_state.analysis_history[:10]:
-                severity = analysis.get('severity', 'UNKNOWN')
-                severity_class = severity.lower() if severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] else 'medium'
-                
-                st.markdown(f"""
-                <div class="history-item">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <span class="severity-badge severity-{severity_class}" style="font-size: 0.7rem; padding: 0.35rem 0.75rem;">{severity}</span>
-                        <code style="color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">{analysis.get('indicator', 'Unknown')}</code>
+            <div class="glass-panel" style="padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <span class="badge {isev_cls}">{isev}</span>
+                    <div>
+                        <div style="font-family: 'JetBrains Mono'; font-size: 0.9rem;">{inc.get('case_id')}</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">{inc.get('title')}</div>
                     </div>
-                    <span style="color: var(--text-muted); font-size: 0.8rem;">{analysis.get('detection_ratio', 'N/A')}</span>
                 </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="empty-state">
-                <div class="empty-state-icon">🔍</div>
-                <p>No analysis history yet</p>
+                <div style="font-size: 0.8rem; color: var(--accent-primary);">{inc.get('status')}</div>
             </div>
             """, unsafe_allow_html=True)
+
+# --- ACTIVITY LOG ---
+with tab_history:
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    with col2:
-        st.markdown("#### Incident Log")
-        
-        if st.session_state.incidents:
-            for incident in st.session_state.incidents[:10]:
-                severity = incident.get('severity', 'MEDIUM')
-                severity_class = severity.lower()
-                
-                st.markdown(f"""
-                <div class="history-item">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <span class="severity-badge severity-{severity_class}" style="font-size: 0.7rem; padding: 0.35rem 0.75rem;">{severity}</span>
-                        <span style="color: var(--text-primary); font-size: 0.85rem;">{incident.get('case_id', 'Unknown')}</span>
-                    </div>
-                    <span style="color: var(--text-muted); font-size: 0.8rem;">{incident.get('status', 'Open')}</span>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="empty-state">
-                <div class="empty-state-icon">🚨</div>
-                <p>No incidents created</p>
+    col_a, col_b = st.columns(2)
+    
+    with col_a:
+        st.markdown("#### Analysis Feed")
+        if not st.session_state.analysis_history:
+            st.info("No activity recorded")
+        for item in st.session_state.analysis_history[:10]:
+            sev = item.get('severity', 'LOW')
+            st.markdown(f"""
+            <div style="padding: 0.8rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
+                <span style="font-family: 'JetBrains Mono'; font-size: 0.85rem;">{item.get('indicator')}</span>
+                <span class="badge badge-{sev.lower()}">{sev}</span>
             </div>
             """, unsafe_allow_html=True)
-    
-    # Clear button
-    st.markdown("<div style='height: 2rem'></div>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("Clear All History", use_container_width=True):
-            st.session_state.analysis_history = []
-            st.session_state.incidents = []
-            st.rerun()
 
-# =============================================================================
-# FOOTER
-# =============================================================================
+    with col_b:
+        st.markdown("#### Incident Feed")
+        if not st.session_state.incidents:
+            st.info("No incidents recorded")
+        for item in st.session_state.incidents[:10]:
+            sev = item.get('severity', 'LOW')
+            st.markdown(f"""
+            <div style="padding: 0.8rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
+                <span style="font-family: 'JetBrains Mono'; font-size: 0.85rem;">{item.get('case_id')}</span>
+                <span class="badge badge-{sev.lower()}">{sev}</span>
+            </div>
+            """, unsafe_allow_html=True)
 
+    if st.button("Clear Audit Log"):
+        st.session_state.analysis_history = []
+        st.session_state.incidents = []
+        st.rerun()
+
+# Footer
 st.markdown("""
-<div class="footer">
-    <p style="margin: 0;">Sentinel Security Platform • Multi-Agent System</p>
-    <p style="margin: 0.5rem 0 0 0; opacity: 0.5;">Built with Google ADK + Streamlit</p>
+<div style="text-align: center; margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.8rem;">
+    Sentinel v2.0 • Intelligent Security Operations
 </div>
 """, unsafe_allow_html=True)
