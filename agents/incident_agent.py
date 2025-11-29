@@ -16,10 +16,10 @@ from google.adk.agents.run_config import RunConfig
 from google.adk.sessions import InMemorySessionService, Session
 import uuid
 
-from shared.memory import IncidentMemory
+from shared.memory.incident_memory import IncidentMemory
 from shared.config import GoogleSecurityMCPConfig
-from shared.a2a_server import A2AServer
-from shared.vertex_registry import VertexAIAgentRegistry
+from shared.communication.a2a_server import A2AServer
+from shared.discovery.vertex_registry import VertexAIAgentRegistry
 
 logger = logging.getLogger(__name__)
 

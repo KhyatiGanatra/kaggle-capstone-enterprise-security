@@ -7,8 +7,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.a2a_client import A2AClient
-from shared.a2a_server import A2AServer
+from shared.communication.a2a_client import A2AClient
+from shared.communication.a2a_server import A2AServer
 
 
 class TestA2AClient(unittest.TestCase):
@@ -19,7 +19,7 @@ class TestA2AClient(unittest.TestCase):
         self.project_id = "test-project"
         self.client = A2AClient(self.project_id)
     
-    @patch('shared.a2a_client.requests.post')
+    @patch('shared.communication.a2a_client.requests.post')
     def test_invoke_agent_success(self, mock_post):
         """Test successful agent invocation"""
         mock_response = MagicMock()
@@ -40,7 +40,7 @@ class TestA2AClient(unittest.TestCase):
         self.assertTrue(result['success'])
         mock_post.assert_called_once()
     
-    @patch('shared.a2a_client.requests.post')
+    @patch('shared.communication.a2a_client.requests.post')
     def test_invoke_agent_failure(self, mock_post):
         """Test agent invocation failure"""
         mock_post.side_effect = Exception("Connection error")
