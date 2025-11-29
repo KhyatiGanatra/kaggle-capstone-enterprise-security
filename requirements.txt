@@ -1,0 +1,44 @@
+# Google ADK and AI
+google-adk>=0.1.0
+google-generativeai>=0.3.0
+
+# Google Cloud Platform
+google-cloud-bigquery>=3.11.0
+google-cloud-storage>=2.10.0
+google-cloud-aiplatform>=1.38.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+
+# HTTP and A2A Protocol
+requests>=2.31.0
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Data Processing
+pandas>=2.1.0
+numpy>=1.24.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+unittest-mock>=1.0.1
+
+# Logging and Monitoring
+python-json-logger>=2.0.7
+
+# Async Support
+asyncio>=3.4.3
+
+# Type Hints
+typing-extensions>=4.8.0
+
+
+
+
+
