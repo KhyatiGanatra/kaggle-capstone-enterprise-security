@@ -55,6 +55,16 @@ ENDPOINT=$(gcloud run services describe ${SERVICE_NAME} \
 echo "Incident Response Agent deployed!"
 echo "Endpoint: ${ENDPOINT}"
 
+# Write endpoint to .env file for root agent discovery
+ENV_FILE="${PROJECT_ROOT}/.env.agents"
+# Remove old INCIDENT_AGENT_ENDPOINT if exists, then add new one
+if [ -f "${ENV_FILE}" ]; then
+    grep -v "^INCIDENT_AGENT_ENDPOINT=" "${ENV_FILE}" > "${ENV_FILE}.tmp" || true
+    mv "${ENV_FILE}.tmp" "${ENV_FILE}"
+fi
+echo "INCIDENT_AGENT_ENDPOINT=${ENDPOINT}" >> "${ENV_FILE}"
+echo "✓ Written INCIDENT_AGENT_ENDPOINT to ${ENV_FILE}"
+
 # Register in Vertex AI Agent Registry
 echo "Registering agent in Vertex AI Agent Registry..."
 python3 -c "
