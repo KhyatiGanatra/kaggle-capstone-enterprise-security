@@ -1,9 +1,11 @@
 """Shared utilities for multi-agent security system"""
 
-from .memory import ThreatIntelMemory, IncidentMemory
-from .config import GoogleSecurityMCPConfig
-from .a2a_client import A2AClient
-from .a2a_server import A2AServer
+from .communication.a2a_client import A2AClient
+from .communication.a2a_server import A2AServer
+from .discovery.vertex_registry import VertexAIAgentRegistry
+from .memory.incident_memory import IncidentMemory
+from .memory.threat_memory import ThreatIntelMemory
+
 
 __all__ = [
     'ThreatIntelMemory',
@@ -11,6 +13,7 @@ __all__ = [
     'GoogleSecurityMCPConfig',
     'A2AClient',
     'A2AServer',
+    'VertexAIAgentRegistry',
 ]
 
 
