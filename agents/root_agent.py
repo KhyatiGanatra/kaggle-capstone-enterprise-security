@@ -145,14 +145,14 @@ class RootOrchestratorAgent:
         
         # Persistent memory (optional)
         try:
-        self.threat_memory = ThreatIntelMemory(project_id)
+            self.threat_memory = ThreatIntelMemory(project_id)
             logger.info("Threat intelligence memory initialized")
         except Exception as e:
             logger.warning(f"Memory not available: {e}")
             self.threat_memory = None
         
         try:
-        self.incident_memory = IncidentMemory(project_id)
+            self.incident_memory = IncidentMemory(project_id)
             logger.info("Incident memory initialized")
         except Exception as e:
             logger.warning(f"Memory not available: {e}")
