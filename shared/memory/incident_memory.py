@@ -1,5 +1,6 @@
 """BigQuery-based persistent memory for agents"""
 
+import os
 import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -8,10 +9,25 @@ from google.api_core import exceptions as google_exceptions
 
 logger = logging.getLogger(__name__)
 
+
+def is_gcp_environment() -> bool:
+    """Quick check if running in GCP (has credentials configured)"""
+    return (
+        os.getenv("GOOGLE_APPLICATION_CREDENTIALS") is not None or
+        os.getenv("GOOGLE_CLOUD_PROJECT") is not None and 
+        os.path.exists("/var/run/secrets/kubernetes.io") or  # GKE
+        os.getenv("K_SERVICE") is not None  # Cloud Run
+    )
+
+
 class IncidentMemory:
     """Memory storage for Incident Response Agent using BigQuery"""
     
     def __init__(self, project_id: str):
+        # Fast-fail if not in GCP environment (avoids 3s timeout)
+        if not is_gcp_environment():
+            raise RuntimeError("Not in GCP environment - BigQuery unavailable")
+        
         self.project_id = project_id
         self.bq_client = bigquery.Client(project=project_id)
         self.dataset_id = "security_intel"
