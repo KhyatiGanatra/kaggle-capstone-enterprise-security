@@ -17,7 +17,9 @@ from shared.memory.threat_memory import ThreatIntelMemory
 from shared.memory.incident_memory import IncidentMemory
 from shared.communication.a2a_client import A2AClient
 from shared.communication.a2a_server import A2AServer
+from shared.communication.a2a_server_fastapi import A2AServerFastAPI
 from shared.discovery.vertex_registry import VertexAIAgentRegistry
+from shared.web_server.start_with_web_ui import start_agent_with_web_ui
 
 logger = logging.getLogger(__name__)
 
@@ -408,24 +410,26 @@ Please provide an executive summary of:
             "high_incidents": len([i for i in active_incidents if i.get('severity') == 'HIGH'])
         }
     
-    def start_a2a_server(self, port: int = 8080, register: bool = True):
+    def start_a2a_server(self, port: int = 8080, register: bool = True, enable_web_ui: bool = True):
         """
-        Start A2A protocol server for this agent
+        Start A2A protocol server with optional ADK web UI for this agent
         
         Args:
             port: Port to run the server on
             register: Whether to register with Vertex AI Agent Registry
+            enable_web_ui: Whether to enable ADK web UI for monitoring
         """
-        server = A2AServer(agent_name="RootOrchestratorAgent", port=port)
+        # Prepare A2A methods
+        a2a_methods = {
+            "process_security_event": self.process_security_event,
+            "get_session_status": self.get_session_status
+        }
         
-        # Register A2A methods
-        server.register_method("process_security_event", self.process_security_event)
-        server.register_method("get_session_status", self.get_session_status)
+        # Determine agents directory for ADK web UI
+        # In Cloud Run, the agent structure is created in the Dockerfile
+        agents_dir = os.getenv("ADK_AGENTS_DIR", "/app/adk_web_ui")
         
-        # Start server FIRST (so Cloud Run health checks pass)
-        logger.info(f"Starting RootOrchestratorAgent A2A server on port {port}")
-        
-        # Register with Vertex AI in background (non-blocking)
+        # Register with Vertex AI if requested
         if register:
             try:
                 registry = VertexAIAgentRegistry(self.project_id, self.location)
@@ -439,8 +443,18 @@ Please provide an executive summary of:
             except Exception as e:
                 logger.warning(f"Failed to register with Vertex AI Agent Registry (continuing anyway): {e}")
         
-        # Start server (this blocks)
-        server.run(host='0.0.0.0', debug=False)
+        # Start unified server with A2A and web UI
+        logger.info(f"Starting RootOrchestratorAgent server on port {port}")
+        if enable_web_ui:
+            logger.info(f"ADK web UI enabled - access at http://<service-url>/web")
+        
+        start_agent_with_web_ui(
+            agent_name="RootOrchestratorAgent",
+            agents_dir=agents_dir,
+            a2a_methods=a2a_methods,
+            port=port,
+            enable_web_ui=enable_web_ui
+        )
 
 
 if __name__ == "__main__":
