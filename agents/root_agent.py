@@ -145,14 +145,14 @@ class RootOrchestratorAgent:
         
         # Persistent memory (optional)
         try:
-        self.threat_memory = ThreatIntelMemory(project_id)
+            self.threat_memory = ThreatIntelMemory(project_id)
             logger.info("Threat intelligence memory initialized")
         except Exception as e:
             logger.warning(f"Memory not available: {e}")
             self.threat_memory = None
         
         try:
-        self.incident_memory = IncidentMemory(project_id)
+            self.incident_memory = IncidentMemory(project_id)
             logger.info("Incident memory initialized")
         except Exception as e:
             logger.warning(f"Memory not available: {e}")
@@ -406,7 +406,7 @@ IMPORTANT:
         
         # Try A2A first (for distributed deployment)
         if self.threat_agent_endpoint:
-        try:
+            try:
             result = self.a2a_client.invoke_agent(
                 agent_name="ThreatAnalysisAgent",
                 method="analyze_indicator",
@@ -445,7 +445,7 @@ IMPORTANT:
         
         # Try A2A first (for distributed deployment)
         if self.incident_agent_endpoint:
-        try:
+            try:
             result = self.a2a_client.invoke_agent(
                 agent_name="IncidentResponseAgent",
                 method="handle_incident",
