@@ -145,14 +145,14 @@ class RootOrchestratorAgent:
         
         # Persistent memory (optional)
         try:
-            self.threat_memory = ThreatIntelMemory(project_id)
+        self.threat_memory = ThreatIntelMemory(project_id)
             logger.info("Threat intelligence memory initialized")
         except Exception as e:
             logger.warning(f"Memory not available: {e}")
             self.threat_memory = None
         
         try:
-            self.incident_memory = IncidentMemory(project_id)
+        self.incident_memory = IncidentMemory(project_id)
             logger.info("Incident memory initialized")
         except Exception as e:
             logger.warning(f"Memory not available: {e}")
@@ -328,17 +328,51 @@ IMPORTANT:
         return "domain"
     
     def _discover_sub_agents(self):
-        """Discover sub-agents from registry or environment variables"""
+        """Discover sub-agents from registry, environment variables, or .env.agents file"""
+        
+        def _read_env_agents_file():
+            """Read agent endpoints from .env.agents file if it exists"""
+            env_agents_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                '.env.agents'
+            )
+            endpoints = {}
+            if os.path.exists(env_agents_path):
+                try:
+                    with open(env_agents_path, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#') and '=' in line:
+                                key, value = line.split('=', 1)
+                                key = key.strip()
+                                value = value.strip().strip('"').strip("'")
+                                if key.endswith('_ENDPOINT'):
+                                    endpoints[key] = value
+                    if endpoints:
+                        logger.info(f"✓ Loaded {len(endpoints)} endpoints from .env.agents")
+                except Exception as e:
+                    logger.warning(f"Failed to read .env.agents: {e}")
+            return endpoints
+        
         try:
+            # First, try to read from .env.agents file (for local/distributed deployment)
+            env_agents = _read_env_agents_file()
+            
             # Threat Analysis Agent
             threat_agent_info = self.registry.discover_agent("ThreatAnalysisAgent")
             if threat_agent_info:
                 self.threat_agent_endpoint = threat_agent_info.get('endpoint')
-                logger.info(f"✓ Discovered ThreatAnalysisAgent at {self.threat_agent_endpoint}")
+                logger.info(f"✓ Discovered ThreatAnalysisAgent from registry: {self.threat_agent_endpoint}")
             else:
+                # Try environment variable first
                 self.threat_agent_endpoint = os.getenv("THREAT_AGENT_ENDPOINT")
+                # Fallback to .env.agents file
+                if not self.threat_agent_endpoint:
+                    self.threat_agent_endpoint = env_agents.get("THREAT_AGENT_ENDPOINT")
+                
                 if self.threat_agent_endpoint:
-                    logger.info(f"✓ Using ThreatAnalysisAgent from env: {self.threat_agent_endpoint}")
+                    source = "env var" if os.getenv("THREAT_AGENT_ENDPOINT") else ".env.agents"
+                    logger.info(f"✓ Using ThreatAnalysisAgent from {source}: {self.threat_agent_endpoint}")
                 else:
                     logger.warning("⚠ ThreatAnalysisAgent not configured - will use direct instantiation")
             
@@ -346,37 +380,45 @@ IMPORTANT:
             incident_agent_info = self.registry.discover_agent("IncidentResponseAgent")
             if incident_agent_info:
                 self.incident_agent_endpoint = incident_agent_info.get('endpoint')
-                logger.info(f"✓ Discovered IncidentResponseAgent at {self.incident_agent_endpoint}")
+                logger.info(f"✓ Discovered IncidentResponseAgent from registry: {self.incident_agent_endpoint}")
             else:
+                # Try environment variable first
                 self.incident_agent_endpoint = os.getenv("INCIDENT_AGENT_ENDPOINT")
+                # Fallback to .env.agents file
+                if not self.incident_agent_endpoint:
+                    self.incident_agent_endpoint = env_agents.get("INCIDENT_AGENT_ENDPOINT")
+                
                 if self.incident_agent_endpoint:
-                    logger.info(f"✓ Using IncidentResponseAgent from env: {self.incident_agent_endpoint}")
+                    source = "env var" if os.getenv("INCIDENT_AGENT_ENDPOINT") else ".env.agents"
+                    logger.info(f"✓ Using IncidentResponseAgent from {source}: {self.incident_agent_endpoint}")
                 else:
                     logger.warning("⚠ IncidentResponseAgent not configured - will use direct instantiation")
                 
         except Exception as e:
             logger.error(f"Error discovering sub-agents: {e}")
-            self.threat_agent_endpoint = os.getenv("THREAT_AGENT_ENDPOINT")
-            self.incident_agent_endpoint = os.getenv("INCIDENT_AGENT_ENDPOINT")
+            # Fallback to environment variables and .env.agents
+            env_agents = _read_env_agents_file()
+            self.threat_agent_endpoint = os.getenv("THREAT_AGENT_ENDPOINT") or env_agents.get("THREAT_AGENT_ENDPOINT")
+            self.incident_agent_endpoint = os.getenv("INCIDENT_AGENT_ENDPOINT") or env_agents.get("INCIDENT_AGENT_ENDPOINT")
     
     def _call_threat_agent(self, indicator: str, indicator_type: str, context: str = "") -> dict:
         """Call Threat Analysis Agent - via A2A, pre-initialized instance, or new instance"""
         
         # Try A2A first (for distributed deployment)
         if self.threat_agent_endpoint:
-            try:
-                result = self.a2a_client.invoke_agent(
-                    agent_name="ThreatAnalysisAgent",
-                    method="analyze_indicator",
-                    params={
-                        "indicator": indicator,
-                        "indicator_type": indicator_type,
-                        "context": context
-                    },
-                    endpoint=self.threat_agent_endpoint
-                )
-                return result
-            except Exception as e:
+        try:
+            result = self.a2a_client.invoke_agent(
+                agent_name="ThreatAnalysisAgent",
+                method="analyze_indicator",
+                params={
+                    "indicator": indicator,
+                    "indicator_type": indicator_type,
+                    "context": context
+                },
+                endpoint=self.threat_agent_endpoint
+            )
+            return result
+        except Exception as e:
                 logger.warning(f"A2A call failed, falling back to direct: {e}")
         
         # Use pre-initialized agent if available (avoids MCP re-initialization)
@@ -403,18 +445,18 @@ IMPORTANT:
         
         # Try A2A first (for distributed deployment)
         if self.incident_agent_endpoint:
-            try:
-                result = self.a2a_client.invoke_agent(
-                    agent_name="IncidentResponseAgent",
-                    method="handle_incident",
-                    params={
-                        "threat_analysis": threat_analysis,
-                        "context": context
-                    },
-                    endpoint=self.incident_agent_endpoint
-                )
-                return result
-            except Exception as e:
+        try:
+            result = self.a2a_client.invoke_agent(
+                agent_name="IncidentResponseAgent",
+                method="handle_incident",
+                params={
+                    "threat_analysis": threat_analysis,
+                    "context": context
+                },
+                endpoint=self.incident_agent_endpoint
+            )
+            return result
+        except Exception as e:
                 logger.warning(f"A2A call failed, falling back to direct: {e}")
         
         # Use pre-initialized agent if available

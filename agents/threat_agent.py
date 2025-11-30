@@ -211,18 +211,34 @@ class ThreatAnalysisAgent:
     def _initialize_agent(self):
         """Initialize the ADK agent with MCP tools"""
         
-        # Create MCP toolset
-        self.mcp_toolset = create_gti_mcp_toolset()
+        # Create MCP toolset with timeout protection
+        try:
+            self.mcp_toolset = create_gti_mcp_toolset()
+        except Exception as e:
+            logger.warning(f"MCP toolset creation failed: {e}")
+            self.mcp_toolset = None
         
         if self.mcp_toolset:
-            # Get tools from MCP server
+            # Get tools from MCP server with timeout (10 seconds max)
             try:
-                self.tools = asyncio.run(get_mcp_tools(self.mcp_toolset))
+                # Set timeout for tool discovery
+                self.tools = asyncio.run(
+                    asyncio.wait_for(get_mcp_tools(self.mcp_toolset), timeout=10.0)
+                )
                 self.is_live_mode = len(self.tools) > 0
+                logger.info(f"MCP initialization complete: {len(self.tools)} tools discovered")
+            except asyncio.TimeoutError:
+                logger.warning("MCP tool discovery timed out after 10s - continuing in demo mode")
+                self.tools = []
+                self.is_live_mode = False
             except Exception as e:
                 logger.error(f"Failed to get MCP tools: {e}")
                 self.tools = []
                 self.is_live_mode = False
+        else:
+            logger.info("MCP toolset not available - running in demo mode")
+            self.tools = []
+            self.is_live_mode = False
         
         # Build tool list string for system prompt
         if self.tools:

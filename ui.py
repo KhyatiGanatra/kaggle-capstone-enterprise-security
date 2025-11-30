@@ -181,41 +181,59 @@ def get_agents():
     
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "demo-project")
     
-    # Initialize sub-agents FIRST
-    threat_agent = ThreatAnalysisAgent(project_id)
-    incident_agent = IncidentResponseAgent(project_id)
-    
-    # Pass sub-agents to Root Agent to avoid re-initialization
-    root_agent = RootOrchestratorAgent(
-        project_id,
-        threat_agent=threat_agent,
-        incident_agent=incident_agent
-    )
-    
-    return {
-        "root": root_agent,
-        "threat": threat_agent,
-        "incident": incident_agent
-    }
+    try:
+        # Initialize sub-agents FIRST
+        # Threat agent has 10s timeout built-in for MCP connection
+        threat_agent = ThreatAnalysisAgent(project_id)
+        
+        # Incident agent is usually fast
+        incident_agent = IncidentResponseAgent(project_id)
+        
+        # Pass sub-agents to Root Agent to avoid re-initialization
+        root_agent = RootOrchestratorAgent(
+            project_id,
+            threat_agent=threat_agent,
+            incident_agent=incident_agent
+        )
+        
+        return {
+            "root": root_agent,
+            "threat": threat_agent,
+            "incident": incident_agent
+        }
+    except Exception as e:
+        # Log error but don't crash - return None so UI can show error
+        import logging
+        logging.error(f"Failed to initialize agents: {e}", exc_info=True)
+        return None
 
 # Initialize agents
-try:
-    agents = get_agents()
+agents = get_agents()
+
+if agents is None:
+    st.session_state.agent_initialized = False
+    st.error("⚠️ Failed to initialize agents. The app may not function correctly.")
+    st.info("💡 This might be due to MCP connection timeout. The app will continue in limited mode.")
+else:
     st.session_state.agent_initialized = True
     
     # Get mode info
-    if st.session_state.mode_info is None:
-        threat_mode = agents["threat"].get_mode_indicator()
-        incident_mode = agents["incident"].get_mode_indicator()
+    try:
+        if st.session_state.mode_info is None:
+            threat_mode = agents["threat"].get_mode_indicator()
+            incident_mode = agents["incident"].get_mode_indicator()
+            st.session_state.mode_info = {
+                "threat": threat_mode,
+                "incident": incident_mode,
+                "overall_live": threat_mode.get("is_live", False)
+            }
+    except Exception as e:
+        # Mode info is optional, continue without it
         st.session_state.mode_info = {
-            "threat": threat_mode,
-            "incident": incident_mode,
-            "overall_live": threat_mode.get("is_live", False)
+            "threat": {"is_live": False, "mode": "Unknown", "icon": "⚪"},
+            "incident": {"is_live": False, "mode": "Demo", "icon": "🟡"},
+            "overall_live": False
         }
-except Exception as e:
-    st.session_state.agent_initialized = False
-    st.error(f"Failed to initialize agents: {e}")
-    agents = None
 
 # =============================================================================
 # CUSTOM CSS
