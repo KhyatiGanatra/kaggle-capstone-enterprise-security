@@ -176,25 +176,50 @@ if 'mode_info' not in st.session_state:
 def get_agents():
     """Initialize agents (cached to avoid re-initialization)"""
     from agents.root_agent import RootOrchestratorAgent
-    from agents.threat_agent import ThreatAnalysisAgent
-    from agents.incident_agent import IncidentResponseAgent
+    from shared.communication.adk_root_agent_client import ADKRootAgentClient
     
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "demo-project")
     
     try:
-        # Initialize sub-agents FIRST
-        # Threat agent has 10s timeout built-in for MCP connection
-        threat_agent = ThreatAnalysisAgent(project_id)
+        root_agent = None
+        # Check if an ADK agent URL is provided
+        root_agent_service_url = os.getenv("ROOT_AGENT_SVC_URL")
         
-        # Incident agent is usually fast
-        incident_agent = IncidentResponseAgent(project_id)
-        
-        # Pass sub-agents to Root Agent to avoid re-initialization
-        root_agent = RootOrchestratorAgent(
-            project_id,
-            threat_agent=threat_agent,
-            incident_agent=incident_agent
-        )
+        if root_agent_service_url:
+            st.info(f"Connecting to remote Root Agent at: {root_agent_service_url}")
+            root_agent = ADKRootAgentClient(
+                service_url=root_agent_service_url,
+                project_id=project_id
+            )
+            # When using a remote ADK agent, sub-agents are managed by the remote agent
+            # We provide dummy objects for threat and incident agents to satisfy the UI's expectations
+            # These dummy agents will not perform any operations directly.
+            threat_agent = type('ThreatAgentDummy', (object,), {
+                'get_mode_indicator': lambda self: {"is_live": True, "mode": "ADK Remote", "icon": "⚡", "source": "ADK Remote"},
+                'analyze_indicator': lambda self, indicator, indicator_type: {"success": False, "error": "Threat analysis handled by remote agent"}
+            })()
+            incident_agent = type('IncidentAgentDummy', (object,), {
+                'get_mode_indicator': lambda self: {"is_live": True, "mode": "ADK Remote", "icon": "⚡", "source": "ADK Remote"},
+                'execute_action': lambda self, action, value: {"success": False, "error": "Incident response handled by remote agent"},
+                'handle_incident': lambda self, analysis, description: {"success": False, "error": "Incident handling handled by remote agent"}
+            })()
+        else:
+            st.info("Initializing local agents...")
+            from agents.threat_agent import ThreatAnalysisAgent
+            from agents.incident_agent import IncidentResponseAgent
+            # Initialize sub-agents FIRST
+            # Threat agent has 10s timeout built-in for MCP connection
+            threat_agent = ThreatAnalysisAgent(project_id)
+            
+            # Incident agent is usually fast
+            incident_agent = IncidentResponseAgent(project_id)
+            
+            # Pass sub-agents to Root Agent to avoid re-initialization
+            root_agent = RootOrchestratorAgent(
+                project_id,
+                threat_agent=threat_agent,
+                incident_agent=incident_agent
+            )
         
         return {
             "root": root_agent,
@@ -206,6 +231,25 @@ def get_agents():
         import logging
         logging.error(f"Failed to initialize agents: {e}", exc_info=True)
         return None
+
+def _detect_indicator_type(indicator: str) -> str:
+    """
+    Detects the type of an indicator (IP, domain, hash, URL).
+    """
+    if isinstance(indicator, str):
+        # Basic IP address check (IPv4)
+        if indicator.count('.') == 3 and all(part.isdigit() for part in indicator.split('.')):
+            return "ip"
+        # Basic URL check
+        if indicator.startswith("http://") or indicator.startswith("https://"):
+            return "url"
+        # Basic Hash check (MD5, SHA1, SHA256 length)
+        if len(indicator) in [32, 40, 64] and all(c in "0123456789abcdefABCDEF" for c in indicator):
+            return "hash"
+        # Basic Domain check (contains a dot, not an IP, and no scheme)
+        if '.' in indicator and not (indicator.replace('.', '').isdigit()) and not (indicator.startswith("http")):
+            return "domain"
+    return "unknown"
 
 # Initialize agents
 agents = get_agents()
@@ -234,6 +278,7 @@ else:
             "incident": {"is_live": False, "mode": "Demo", "icon": "🟡"},
             "overall_live": False
         }
+
 
 # =============================================================================
 # CUSTOM CSS
@@ -509,7 +554,7 @@ with tab_threat:
             try:
                 # Auto-detect type if needed
                 if indicator_type == "auto":
-                    indicator_type = agents["root"]._detect_indicator_type(indicator)
+                    indicator_type = _detect_indicator_type(indicator)
                 
                 result = agents["threat"].analyze_indicator(indicator, indicator_type)
                 
