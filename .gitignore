@@ -37,6 +37,9 @@ ENV/
 .env
 .env.local
 
+# Streamlit secrets (keep secrets.toml.example)
+.streamlit/secrets.toml
+
 # Google Cloud
 *.json
 !requirements.txt

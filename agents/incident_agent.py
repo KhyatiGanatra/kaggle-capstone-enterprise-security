@@ -1,11 +1,11 @@
-"""Incident Response Agent - Standalone service with A2A protocol support"""
+"""Incident Response Agent - Using simulated SOAR tools for demo"""
 
 import os
 import json
 import logging
 import asyncio
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
@@ -25,17 +25,24 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# SOAR TOOLS - Simulated incident response actions
+# SOAR TOOLS - Simulated for Demo (Chronicle SOAR requires enterprise access)
 # =============================================================================
 
 # In-memory case storage for demo
-_cases = {}
+_cases: Dict[str, Dict] = {}
 _case_counter = [0]
+
+# Check if real SOAR is configured
+SOAR_API_KEY = os.getenv("SOAR_API_KEY", "")
+IS_LIVE_SOAR = bool(SOAR_API_KEY and not SOAR_API_KEY.startswith("your-"))
 
 
 def create_case(title: str, severity: str, description: str = "") -> str:
     """
     Create a new incident case in the SOAR system.
+    
+    NOTE: This is a SIMULATED action for demo purposes.
+    In production, this would integrate with Chronicle SOAR.
     
     Args:
         title: Title of the incident case
@@ -55,17 +62,21 @@ def create_case(title: str, severity: str, description: str = "") -> str:
         "description": description,
         "status": "Open",
         "created_at": datetime.now().isoformat(),
-        "actions_taken": []
+        "actions_taken": [],
+        "source": "Simulated SOAR"
     }
     _cases[case_id] = case
     
-    logger.info(f"[TOOL] create_case: {case_id} - {title}")
+    logger.info(f"[SIMULATED] create_case: {case_id} - {title}")
     return json.dumps(case, indent=2)
 
 
 def block_ip(ip_address: str, case_id: str = "") -> str:
     """
     Block an IP address at the firewall.
+    
+    NOTE: This is a SIMULATED action for demo purposes.
+    In production, this would trigger a firewall rule change.
     
     Args:
         ip_address: The IP address to block
@@ -74,19 +85,20 @@ def block_ip(ip_address: str, case_id: str = "") -> str:
     Returns:
         JSON string with action result
     """
-    logger.info(f"[TOOL] block_ip: {ip_address}")
+    logger.info(f"[SIMULATED] block_ip: {ip_address}")
     
     result = {
         "action": "block_ip",
         "ip_address": ip_address,
         "status": "SUCCESS",
-        "message": f"IP {ip_address} blocked at perimeter firewall",
+        "message": f"[SIMULATED] IP {ip_address} blocked at perimeter firewall",
         "case_id": case_id,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "source": "Simulated SOAR"
     }
     
     if case_id and case_id in _cases:
-        _cases[case_id]["actions_taken"].append(f"Blocked IP: {ip_address}")
+        _cases[case_id]["actions_taken"].append(f"[SIMULATED] Blocked IP: {ip_address}")
     
     return json.dumps(result, indent=2)
 
@@ -95,6 +107,9 @@ def isolate_endpoint(hostname: str, case_id: str = "") -> str:
     """
     Isolate an endpoint from the network.
     
+    NOTE: This is a SIMULATED action for demo purposes.
+    In production, this would trigger EDR isolation.
+    
     Args:
         hostname: The hostname or IP of the endpoint to isolate
         case_id: Optional case ID to associate with this action
@@ -102,19 +117,20 @@ def isolate_endpoint(hostname: str, case_id: str = "") -> str:
     Returns:
         JSON string with action result
     """
-    logger.info(f"[TOOL] isolate_endpoint: {hostname}")
+    logger.info(f"[SIMULATED] isolate_endpoint: {hostname}")
     
     result = {
         "action": "isolate_endpoint",
         "hostname": hostname,
         "status": "SUCCESS",
-        "message": f"Endpoint {hostname} isolated from network",
+        "message": f"[SIMULATED] Endpoint {hostname} isolated from network",
         "case_id": case_id,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "source": "Simulated SOAR"
     }
     
     if case_id and case_id in _cases:
-        _cases[case_id]["actions_taken"].append(f"Isolated endpoint: {hostname}")
+        _cases[case_id]["actions_taken"].append(f"[SIMULATED] Isolated endpoint: {hostname}")
     
     return json.dumps(result, indent=2)
 
@@ -123,6 +139,9 @@ def disable_user(username: str, case_id: str = "") -> str:
     """
     Disable a user account.
     
+    NOTE: This is a SIMULATED action for demo purposes.
+    In production, this would disable the account in IAM/AD.
+    
     Args:
         username: The username to disable
         case_id: Optional case ID to associate with this action
@@ -130,19 +149,20 @@ def disable_user(username: str, case_id: str = "") -> str:
     Returns:
         JSON string with action result
     """
-    logger.info(f"[TOOL] disable_user: {username}")
+    logger.info(f"[SIMULATED] disable_user: {username}")
     
     result = {
         "action": "disable_user",
         "username": username,
         "status": "SUCCESS",
-        "message": f"User account {username} disabled and sessions revoked",
+        "message": f"[SIMULATED] User account {username} disabled and sessions revoked",
         "case_id": case_id,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "source": "Simulated SOAR"
     }
     
     if case_id and case_id in _cases:
-        _cases[case_id]["actions_taken"].append(f"Disabled user: {username}")
+        _cases[case_id]["actions_taken"].append(f"[SIMULATED] Disabled user: {username}")
     
     return json.dumps(result, indent=2)
 
@@ -162,8 +182,23 @@ def get_case_status(case_id: str) -> str:
     if case_id in _cases:
         return json.dumps(_cases[case_id], indent=2)
     else:
-        return json.dumps({"error": f"Case {case_id} not found"}, indent=2)
+        return json.dumps({"error": f"Case {case_id} not found", "source": "Simulated SOAR"}, indent=2)
 
+
+def list_all_cases() -> str:
+    """
+    List all incident cases.
+    
+    Returns:
+        JSON string with all cases
+    """
+    logger.info(f"[TOOL] list_all_cases: {len(_cases)} cases")
+    return json.dumps({"cases": list(_cases.values()), "count": len(_cases), "source": "Simulated SOAR"}, indent=2)
+
+
+# =============================================================================
+# SYNC HELPER
+# =============================================================================
 
 def run_agent_sync(agent, message: str) -> str:
     """Helper function to run an ADK agent synchronously"""
@@ -209,27 +244,51 @@ def run_agent_sync(agent, message: str) -> str:
         return f"Error: {str(e)}"
 
 
+# =============================================================================
+# INCIDENT RESPONSE AGENT
+# =============================================================================
+
 class IncidentResponseAgent:
     """
-    Incident Response Agent using Chronicle SecOps and SOAR MCP Servers
-    Can run as standalone service with A2A protocol support
+    Incident Response Agent with simulated SOAR capabilities.
+    
+    In production, this would connect to Chronicle SOAR MCP server.
+    For demo purposes, it uses simulated tools that mirror SOAR behavior.
     """
     
     def __init__(self, project_id: str, endpoint: Optional[str] = None):
         self.project_id = project_id
+        self.is_live_mode = IS_LIVE_SOAR  # False for demo
+        
+        # Initialize memory (optional)
         try:
             self.memory = IncidentMemory(project_id)
+            logger.info("Incident memory initialized")
         except Exception as e:
             logger.warning(f"Failed to initialize memory: {e}")
             self.memory = None
+        
         self.config = GoogleSecurityMCPConfig()
         self.endpoint = endpoint or os.getenv("INCIDENT_AGENT_ENDPOINT", "http://localhost:8082")
         
-        # Initialize ADK agent with SOAR tools
+        # Define available tools
+        self.tools = [create_case, block_ip, isolate_endpoint, disable_user, get_case_status, list_all_cases]
+        
+        # Initialize ADK agent
         self.agent = adk.Agent(
             name="IncidentResponseAgent",
             model="gemini-2.0-flash",
             instruction="""You are an Incident Response specialist. Your job is to handle security incidents using the available tools.
+
+⚠️ NOTE: All actions are SIMULATED for demo purposes. In production, these would execute real SOAR playbooks.
+
+AVAILABLE TOOLS (Simulated SOAR):
+- create_case: Create an incident case
+- block_ip: Block malicious IP at firewall [SIMULATED]
+- isolate_endpoint: Isolate compromised endpoint [SIMULATED]
+- disable_user: Disable compromised user account [SIMULATED]
+- get_case_status: Check case status
+- list_all_cases: List all incident cases
 
 WORKFLOW:
 1. When given a threat analysis, first create a case using create_case
@@ -238,12 +297,7 @@ WORKFLOW:
    - MEDIUM: Create case and monitor
    - LOW: Document only
 
-AVAILABLE TOOLS:
-- create_case: Create an incident case
-- block_ip: Block malicious IP at firewall
-- isolate_endpoint: Isolate compromised endpoint
-- disable_user: Disable compromised user account
-- get_case_status: Check case status
+3. Always create a case first, then take containment actions.
 
 RESPONSE FORMAT:
 {
@@ -251,20 +305,36 @@ RESPONSE FORMAT:
   "severity": "CRITICAL|HIGH|MEDIUM|LOW",
   "actions_taken": ["action1", "action2"],
   "status": "Open|In Progress|Resolved",
+  "source": "Simulated SOAR",
   "recommendations": ["next steps"]
-}
-
-Always create a case first, then take containment actions for HIGH/CRITICAL threats.""",
-            tools=[create_case, block_ip, isolate_endpoint, disable_user, get_case_status]
+}""",
+            tools=self.tools
         )
         
-        logger.info("✓ Incident Response Agent initialized with SOAR tools")
+        logger.info("✓ Incident Response Agent initialized with simulated SOAR tools")
+    
+    def get_mode_indicator(self) -> Dict[str, Any]:
+        """Return mode indicator for UI display"""
+        return {
+            "is_live": self.is_live_mode,
+            "mode": "Live" if self.is_live_mode else "Demo",
+            "source": "Chronicle SOAR" if self.is_live_mode else "Simulated SOAR",
+            "tools_count": len(self.tools),
+            "icon": "🟢" if self.is_live_mode else "🟡"
+        }
     
     def handle_incident(self, threat_analysis: dict, context: str = "") -> dict:
-        """Handle security incident using Chronicle SecOps and SOAR"""
+        """Handle security incident"""
+        
+        mode_info = self.get_mode_indicator()
         
         # Get active incidents for context
-        active_incidents = self.memory.get_active_incidents()
+        active_incidents = []
+        if self.memory:
+            try:
+                active_incidents = self.memory.get_active_incidents()
+            except Exception as e:
+                logger.warning(f"Failed to get active incidents: {e}")
         
         incident_prompt = f"""A security threat has been identified and requires incident response:
 
@@ -274,44 +344,25 @@ Threat Analysis:
 Additional Context:
 {context}
 
-Active Incidents (for correlation):
-{len(active_incidents)} incidents currently in progress
+Active Incidents: {len(active_incidents)} currently in progress
 
-Please execute the full incident response workflow:
+Please execute the incident response workflow:
 
-1. INVESTIGATE using Chronicle SecOps:
-   - Search for related security events
-   - Look up the indicator entity
-   - Check for IOC matches in environment
-   - Identify affected assets
+1. CREATE CASE: Use create_case with appropriate severity
+2. CONTAINMENT: Based on severity, take containment actions:
+   - For IPs: use block_ip
+   - For hosts: use isolate_endpoint  
+   - For users: use disable_user
+3. DOCUMENT: All actions in the case
 
-2. CREATE CASE in Chronicle SOAR:
-   - Create incident case with appropriate severity
-   - Include all findings from investigation
-   - Tag with relevant threat information
-
-3. EXECUTE CONTAINMENT:
-   - Run appropriate SOAR playbooks based on threat type
-   - Document all actions taken
-   
-4. PROVIDE RECOMMENDATIONS:
-   - Next steps for investigation
-   - Additional monitoring needed
-   - Escalation if required
-
-Return comprehensive response with:
-- Investigation findings from Chronicle
-- SOAR case ID and status
-- Playbooks executed
-- Affected assets list
-- Recommended next actions"""
+Return your response in the JSON format specified in your instructions."""
 
         # Execute incident response
         try:
             content = run_agent_sync(self.agent, incident_prompt)
         except Exception as e:
-            logger.error(f"Error in incident response execution: {e}")
-            return {"success": False, "error": str(e)}
+            logger.error(f"Error in incident response: {e}")
+            return {"success": False, "error": str(e), "mode": mode_info}
         
         # Store incident in memory
         incident_data = {
@@ -321,58 +372,113 @@ Return comprehensive response with:
             "severity": threat_analysis.get('severity', 'MEDIUM'),
             "status": "IN_PROGRESS",
             "response_summary": content[:1000],
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
+            "source": mode_info["source"]
         }
         
-        self.memory.store_incident(incident_data)
+        if self.memory:
+            try:
+                self.memory.store_incident(incident_data)
+            except Exception as e:
+                logger.warning(f"Failed to store incident: {e}")
         
         return {
             "success": True,
             "incident_id": incident_data["incident_id"],
             "response": content,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "mode": mode_info
         }
     
-    def start_a2a_server(self, port: int = 8082, register: bool = True):
-        """
-        Start A2A protocol server for this agent
+    def execute_action(self, action: str, target: str, case_id: str = "") -> dict:
+        """Execute a single response action directly"""
         
-        Args:
-            port: Port to run the server on
-            register: Whether to register with Vertex AI Agent Registry
-        """
+        mode_info = self.get_mode_indicator()
+        
+        action_map = {
+            "block_ip": lambda: block_ip(target, case_id),
+            "isolate_endpoint": lambda: isolate_endpoint(target, case_id),
+            "disable_user": lambda: disable_user(target, case_id),
+        }
+        
+        if action not in action_map:
+            return {
+                "success": False,
+                "error": f"Unknown action: {action}",
+                "available_actions": list(action_map.keys()),
+                "mode": mode_info
+            }
+        
+        try:
+            result = json.loads(action_map[action]())
+            return {
+                "success": True,
+                "result": result,
+                "mode": mode_info
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "mode": mode_info
+            }
+    
+    def start_a2a_server(self, port: int = 8082, register: bool = True):
+        """Start A2A protocol server for this agent"""
         server = A2AServer(agent_name="IncidentResponseAgent", port=port)
         
         # Register A2A methods
         server.register_method("handle_incident", self.handle_incident)
+        server.register_method("execute_action", self.execute_action)
+        server.register_method("get_mode", self.get_mode_indicator)
+        
+        logger.info(f"Starting IncidentResponseAgent A2A server on port {port}")
         
         # Register with Vertex AI if requested
         if register:
-            registry = VertexAIAgentRegistry(self.project_id)
-            registry.register_agent(
-                agent_name="IncidentResponseAgent",
-                endpoint=self.endpoint,
-                capabilities=["handle_incident", "incident_response", "chronicle_integration"]
-            )
-            logger.info("Registered IncidentResponseAgent with Vertex AI Agent Registry")
+            try:
+                registry = VertexAIAgentRegistry(self.project_id)
+                registry.register_agent(
+                    agent_name="IncidentResponseAgent",
+                    endpoint=self.endpoint,
+                    capabilities=["handle_incident", "execute_action", "incident_response", "soar_simulated"]
+                )
+                logger.info("Registered IncidentResponseAgent with Vertex AI Agent Registry")
+            except Exception as e:
+                logger.warning(f"Failed to register with Vertex AI Agent Registry: {e}")
         
         # Start server
-        logger.info(f"Starting IncidentResponseAgent A2A server on port {port}")
         server.run(host='0.0.0.0', debug=False)
 
 
 if __name__ == "__main__":
-    # Run as standalone service
     import sys
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
     if not project_id:
-        print("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set")
+        logger.error("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set")
+        print("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set", file=sys.stderr)
         sys.exit(1)
     
-    # Cloud Run sets PORT environment variable, fallback to INCIDENT_AGENT_PORT for local dev
     port = int(os.getenv("PORT", os.getenv("INCIDENT_AGENT_PORT", "8082")))
     
-    agent = IncidentResponseAgent(project_id)
-    agent.start_a2a_server(port=port, register=True)
-
+    logger.info(f"Starting Incident Response Agent for project: {project_id}")
+    logger.info(f"Server will listen on port: {port}")
+    
+    try:
+        agent = IncidentResponseAgent(project_id)
+        
+        # Show mode
+        mode = agent.get_mode_indicator()
+        logger.info(f"Agent Mode: {mode['icon']} {mode['mode']} - {mode['tools_count']} tools available")
+        
+        agent.start_a2a_server(port=port, register=True)
+    except Exception as e:
+        logger.error(f"Failed to start Incident Response Agent: {e}", exc_info=True)
+        print(f"ERROR: Failed to start agent: {e}", file=sys.stderr)
+        sys.exit(1)

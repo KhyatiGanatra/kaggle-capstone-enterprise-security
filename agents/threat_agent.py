@@ -1,12 +1,11 @@
-"""Threat Analysis Agent - Standalone service with A2A protocol support"""
+"""Threat Analysis Agent - Using GTI MCP Server for dynamic tool discovery"""
 
 import os
 import json
 import logging
 import asyncio
-import requests
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
@@ -15,6 +14,8 @@ from google import adk
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.run_config import RunConfig
 from google.adk.sessions import InMemorySessionService, Session
+from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
+from mcp.client.stdio import StdioServerParameters
 import uuid
 
 from shared.memory.threat_memory import ThreatIntelMemory
@@ -26,142 +27,66 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# VIRUSTOTAL TOOLS - These are the actual tools the agent can call
+# MCP TOOLSET CONFIGURATION
 # =============================================================================
 
-VT_API_KEY = os.getenv("VT_APIKEY", "")
-VT_BASE_URL = "https://www.virustotal.com/api/v3"
-
-
-def _vt_request(endpoint: str) -> Dict:
-    """Make a request to VirusTotal API"""
-    if not VT_API_KEY or VT_API_KEY.startswith("your-"):
-        # Return mock data for demo
-        return {"mock": True, "data": {"attributes": {"last_analysis_stats": {"malicious": 0}}}}
+def create_gti_mcp_toolset() -> Optional[McpToolset]:
+    """
+    Create an MCP Toolset connected to the GTI (VirusTotal) MCP Server.
+    
+    The GTI MCP server provides 35+ tools for threat intelligence:
+    - File analysis (get_file_report, get_entities_related_to_a_file, etc.)
+    - Domain analysis (get_domain_report, get_entities_related_to_a_domain)
+    - IP analysis (get_ip_address_report, get_entities_related_to_an_ip_address)
+    - URL analysis (get_url_report, get_entities_related_to_an_url)
+    - Threat collections (search_threats, search_malware_families, etc.)
+    - IoC search (search_iocs)
+    - And many more...
+    
+    Returns:
+        McpToolset if VT_APIKEY is available, None otherwise
+    """
+    vt_api_key = os.getenv("VT_APIKEY", "")
+    
+    if not vt_api_key or vt_api_key.startswith("your-"):
+        logger.warning("VT_APIKEY not set - GTI MCP tools will not be available")
+        return None
     
     try:
-        response = requests.get(
-            f"{VT_BASE_URL}/{endpoint}",
-            headers={"x-apikey": VT_API_KEY},
-            timeout=30
+        connection_params = StdioConnectionParams(
+            server_params=StdioServerParameters(
+                command='gti_mcp',
+                args=[],
+                env={
+                    'VT_APIKEY': vt_api_key,
+                }
+            ),
+            timeout=30.0  # Allow time for complex queries
         )
-        response.raise_for_status()
-        return response.json()
+        
+        toolset = McpToolset(connection_params=connection_params)
+        logger.info("✓ GTI MCP Toolset created successfully")
+        return toolset
+        
     except Exception as e:
-        logger.error(f"VirusTotal API error: {e}")
-        return {"error": str(e)}
+        logger.error(f"Failed to create GTI MCP Toolset: {e}")
+        return None
 
 
-def _parse_vt_stats(data: Dict, indicator: str, indicator_type: str) -> Dict:
-    """Parse VirusTotal response into standard format"""
-    if data.get("mock"):
-        # Generate mock data based on indicator patterns
-        is_malicious = (
-            indicator.startswith("203.0.113") or
-            "evil" in indicator.lower() or
-            "malware" in indicator.lower()
-        )
-        return {
-            "indicator": indicator,
-            "indicator_type": indicator_type,
-            "severity": "CRITICAL" if is_malicious else "LOW",
-            "confidence": 92 if is_malicious else 10,
-            "malicious_count": 45 if is_malicious else 0,
-            "total_scanners": 70,
-            "detection_ratio": "45/70" if is_malicious else "0/70",
-            "source": "VirusTotal (MOCK)",
-        }
-    
-    attrs = data.get("data", {}).get("attributes", {})
-    stats = attrs.get("last_analysis_stats", {})
-    malicious = stats.get("malicious", 0)
-    total = sum(stats.values()) if stats else 0
-    
-    if total > 0:
-        ratio = malicious / total
-        severity = "CRITICAL" if ratio >= 0.5 else "HIGH" if ratio >= 0.3 else "MEDIUM" if ratio >= 0.1 else "LOW"
-        confidence = min(95, int(ratio * 100 + 20))
-    else:
-        severity = "UNKNOWN"
-        confidence = 0
-    
-    return {
-        "indicator": indicator,
-        "indicator_type": indicator_type,
-        "severity": severity,
-        "confidence": confidence,
-        "malicious_count": malicious,
-        "total_scanners": total,
-        "detection_ratio": f"{malicious}/{total}",
-        "source": "VirusTotal",
-    }
+async def get_mcp_tools(toolset: McpToolset) -> List:
+    """Get tools from MCP toolset asynchronously"""
+    try:
+        tools = await toolset.get_tools()
+        logger.info(f"✓ Discovered {len(tools)} tools from GTI MCP server")
+        return tools
+    except Exception as e:
+        logger.error(f"Failed to get tools from MCP: {e}")
+        return []
 
 
-def get_ip_report(ip_address: str) -> str:
-    """
-    Check IP address reputation using VirusTotal.
-    
-    Args:
-        ip_address: The IP address to analyze (e.g., "203.0.113.42")
-    
-    Returns:
-        JSON string with severity, confidence, and detection ratio
-    """
-    logger.info(f"[TOOL] get_ip_report: {ip_address}")
-    data = _vt_request(f"ip_addresses/{ip_address}")
-    result = _parse_vt_stats(data, ip_address, "ip")
-    return json.dumps(result, indent=2)
-
-
-def get_domain_report(domain: str) -> str:
-    """
-    Check domain reputation using VirusTotal.
-    
-    Args:
-        domain: The domain to analyze (e.g., "evil-site.com")
-    
-    Returns:
-        JSON string with severity, confidence, and detection ratio
-    """
-    logger.info(f"[TOOL] get_domain_report: {domain}")
-    data = _vt_request(f"domains/{domain}")
-    result = _parse_vt_stats(data, domain, "domain")
-    return json.dumps(result, indent=2)
-
-
-def get_hash_report(file_hash: str) -> str:
-    """
-    Check file hash reputation using VirusTotal.
-    
-    Args:
-        file_hash: The file hash to analyze (MD5, SHA1, or SHA256)
-    
-    Returns:
-        JSON string with severity, confidence, and detection ratio
-    """
-    logger.info(f"[TOOL] get_hash_report: {file_hash}")
-    data = _vt_request(f"files/{file_hash}")
-    result = _parse_vt_stats(data, file_hash, "hash")
-    return json.dumps(result, indent=2)
-
-
-def get_url_report(url: str) -> str:
-    """
-    Check URL reputation using VirusTotal.
-    
-    Args:
-        url: The URL to analyze
-    
-    Returns:
-        JSON string with severity, confidence, and detection ratio
-    """
-    import base64
-    logger.info(f"[TOOL] get_url_report: {url}")
-    url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
-    data = _vt_request(f"urls/{url_id}")
-    result = _parse_vt_stats(data, url, "url")
-    return json.dumps(result, indent=2)
-
+# =============================================================================
+# SYNC HELPER
+# =============================================================================
 
 def run_agent_sync(agent, message: str) -> str:
     """Helper function to run an ADK agent synchronously"""
@@ -207,66 +132,143 @@ def run_agent_sync(agent, message: str) -> str:
         return f"Error: {str(e)}"
 
 
+# =============================================================================
+# THREAT ANALYSIS AGENT
+# =============================================================================
+
 class ThreatAnalysisAgent:
     """
     Threat Analysis Agent using Google Threat Intelligence (GTI) MCP Server
-    Can run as standalone service with A2A protocol support
+    
+    This agent dynamically discovers and uses tools from the GTI MCP server,
+    which provides comprehensive threat intelligence capabilities via VirusTotal.
     """
     
     def __init__(self, project_id: str, endpoint: Optional[str] = None):
         self.project_id = project_id
+        self.mcp_toolset: Optional[McpToolset] = None
+        self.tools: List = []
+        self.is_live_mode = False  # Track if using real API or demo mode
+        
+        # Initialize memory (optional)
         try:
             self.memory = ThreatIntelMemory(project_id)
             logger.info("Threat intelligence memory initialized")
         except Exception as e:
-            logger.warning(f"Failed to initialize BigQuery memory (will continue without persistence): {e}")
+            logger.warning(f"Failed to initialize memory (continuing without persistence): {e}")
             self.memory = None
         
         self.config = GoogleSecurityMCPConfig()
         self.endpoint = endpoint or os.getenv("THREAT_AGENT_ENDPOINT", "http://localhost:8081")
         
-        # Initialize ADK agent with tools
-        try:
-            self.agent = adk.Agent(
-                name="ThreatAnalysisAgent",
-                model="gemini-2.0-flash",
-                instruction="""You are a Cyber Threat Intelligence Analyst. Your job is to analyze security indicators using the available tools.
+        # Initialize MCP toolset and agent
+        self._initialize_agent()
+        
+        logger.info("✓ Threat Analysis Agent initialized")
+    
+    def _initialize_agent(self):
+        """Initialize the ADK agent with MCP tools"""
+        
+        # Create MCP toolset
+        self.mcp_toolset = create_gti_mcp_toolset()
+        
+        if self.mcp_toolset:
+            # Get tools from MCP server
+            try:
+                self.tools = asyncio.run(get_mcp_tools(self.mcp_toolset))
+                self.is_live_mode = len(self.tools) > 0
+            except Exception as e:
+                logger.error(f"Failed to get MCP tools: {e}")
+                self.tools = []
+                self.is_live_mode = False
+        
+        # Build tool list string for system prompt
+        if self.tools:
+            tool_names = [t.name for t in self.tools]
+            tools_description = f"""You have access to {len(self.tools)} tools from the GTI MCP server:
+
+KEY TOOLS:
+- get_ip_address_report: Analyze IP addresses for threats
+- get_domain_report: Analyze domains for threats
+- get_file_report: Analyze file hashes (MD5, SHA1, SHA256)
+- get_url_report: Analyze URLs for threats
+- search_iocs: Search for indicators of compromise
+- search_threats: Search threat intelligence database
+- search_malware_families: Look up malware families
+- search_threat_actors: Look up threat actors
+
+FULL TOOL LIST: {', '.join(tool_names[:20])}{'...' if len(tool_names) > 20 else ''}
+
+DATA SOURCE: VirusTotal (Live API) ✓"""
+        else:
+            tools_description = """NO TOOLS AVAILABLE - Running in DEMO MODE.
+You cannot perform real threat analysis without the GTI MCP tools.
+Please ensure VT_APIKEY is set correctly."""
+        
+        # Build agent instruction
+        instruction = f"""You are a Cyber Threat Intelligence Analyst powered by Google Threat Intelligence (GTI).
+
+{tools_description}
 
 WORKFLOW:
-1. When given an indicator, use the appropriate tool to check it:
-   - IP address → use get_ip_report
+1. When given an indicator, identify its type:
+   - IP address → use get_ip_address_report
    - Domain → use get_domain_report  
-   - File hash → use get_hash_report
+   - File hash (MD5/SHA1/SHA256) → use get_file_report
    - URL → use get_url_report
 
-2. Interpret the results and provide:
+2. Analyze the results and provide:
    - Severity assessment (CRITICAL/HIGH/MEDIUM/LOW)
    - Confidence level (0-100)
+   - Threat type identification
    - Recommended actions
 
-3. Always use the tools first, then analyze the results.
+3. For deeper investigation, use related entity tools to find connections.
 
 OUTPUT FORMAT:
-{
+{{
   "indicator": "the indicator analyzed",
   "indicator_type": "ip|domain|hash|url",
   "severity": "CRITICAL|HIGH|MEDIUM|LOW",
   "confidence": 0-100,
-  "threat_type": "malware|phishing|c2|benign",
+  "threat_type": "malware|phishing|c2|benign|unknown",
   "detection_ratio": "X/Y",
-  "recommendations": ["action1", "action2"]
-}""",
-                tools=[get_ip_report, get_domain_report, get_hash_report, get_url_report]
+  "source": "VirusTotal (Live)" or "Demo Mode",
+  "recommendations": ["action1", "action2"],
+  "related_threats": []
+}}"""
+        
+        # Create the agent
+        try:
+            self.agent = adk.Agent(
+                name="ThreatAnalysisAgent",
+                model="gemini-2.0-flash",
+                instruction=instruction,
+                tools=self.tools if self.tools else None
             )
-            logger.info("ADK agent initialized with VirusTotal tools")
+            
+            mode = "LIVE (GTI MCP)" if self.is_live_mode else "DEMO (no tools)"
+            logger.info(f"ADK agent initialized in {mode} mode with {len(self.tools)} tools")
+            
         except Exception as e:
             logger.error(f"Failed to initialize ADK agent: {e}", exc_info=True)
             raise
-        
-        logger.info("✓ Threat Analysis Agent initialized")
+    
+    def get_mode_indicator(self) -> Dict[str, Any]:
+        """Return mode indicator for UI display"""
+        return {
+            "is_live": self.is_live_mode,
+            "mode": "Live" if self.is_live_mode else "Demo",
+            "source": "VirusTotal GTI" if self.is_live_mode else "Demo Mode",
+            "tools_count": len(self.tools),
+            "icon": "🟢" if self.is_live_mode else "🟡"
+        }
     
     def analyze_indicator(self, indicator: str, indicator_type: str, context: str = "") -> dict:
-        """Analyze a security indicator using GTI and organizational memory"""
+        """Analyze a security indicator using GTI MCP tools"""
+        
+        # Check mode
+        mode_info = self.get_mode_indicator()
         
         # Retrieve historical data from memory (if available)
         historical_data = []
@@ -277,23 +279,21 @@ OUTPUT FORMAT:
                 logger.warning(f"Failed to retrieve historical data: {e}")
         
         # Build analysis request
-        analysis_prompt = f"""Analyze this security indicator using Google Threat Intelligence:
+        analysis_prompt = f"""Analyze this security indicator:
 
 Indicator: {indicator}
 Type: {indicator_type}
 
 {f'Additional Context: {context}' if context else ''}
 
-Historical Intelligence (from our memory):
+Historical Intelligence:
 {json.dumps(historical_data, indent=2, default=str) if historical_data else 'No historical data found'}
 
 Please:
-1. Use the GTI MCP server to look up this {indicator_type}
+1. Use the appropriate GTI MCP tool to analyze this {indicator_type}
 2. Assess the threat level and confidence
-3. Identify associated threat actors and malware families
-4. Map to MITRE ATT&CK techniques if applicable
-5. Provide specific detection and mitigation recommendations
-6. Compare with our historical data to identify trends
+3. Identify any associated threats, malware families, or threat actors
+4. Provide specific detection and mitigation recommendations
 
 Return your analysis in the JSON format specified in your instructions."""
 
@@ -302,7 +302,11 @@ Return your analysis in the JSON format specified in your instructions."""
             content = run_agent_sync(self.agent, analysis_prompt)
         except Exception as e:
             logger.error(f"Error running agent: {e}")
-            return {"success": False, "error": str(e)}
+            return {
+                "success": False, 
+                "error": str(e),
+                "mode": mode_info
+            }
         
         # Parse and store result
         try:
@@ -319,6 +323,9 @@ Return your analysis in the JSON format specified in your instructions."""
                     "analyzed_at": datetime.now().isoformat()
                 }
             
+            # Add mode info
+            analysis_result["source"] = mode_info["source"]
+            
             # Store in memory (if available)
             if self.memory:
                 try:
@@ -329,7 +336,8 @@ Return your analysis in the JSON format specified in your instructions."""
             return {
                 "success": True,
                 "analysis": analysis_result,
-                "raw_response": content
+                "raw_response": content,
+                "mode": mode_info
             }
             
         except json.JSONDecodeError as e:
@@ -337,30 +345,35 @@ Return your analysis in the JSON format specified in your instructions."""
             return {
                 "success": False,
                 "error": "JSON parse error",
-                "raw_response": content
+                "raw_response": content,
+                "mode": mode_info
             }
         except Exception as e:
             logger.error(f"Error in analysis: {e}")
             return {
                 "success": False,
                 "error": str(e),
-                "raw_response": content
+                "raw_response": content,
+                "mode": mode_info
             }
     
+    async def close(self):
+        """Clean up MCP toolset connection"""
+        if self.mcp_toolset:
+            try:
+                await self.mcp_toolset.close()
+                logger.info("MCP toolset closed")
+            except Exception as e:
+                logger.warning(f"Error closing MCP toolset: {e}")
+    
     def start_a2a_server(self, port: int = 8081, register: bool = True):
-        """
-        Start A2A protocol server for this agent
-        
-        Args:
-            port: Port to run the server on
-            register: Whether to register with Vertex AI Agent Registry
-        """
+        """Start A2A protocol server for this agent"""
         server = A2AServer(agent_name="ThreatAnalysisAgent", port=port)
         
         # Register A2A methods
         server.register_method("analyze_indicator", self.analyze_indicator)
+        server.register_method("get_mode", self.get_mode_indicator)
         
-        # Start server FIRST (so Cloud Run health checks pass)
         logger.info(f"Starting ThreatAnalysisAgent A2A server on port {port}")
         
         # Register with Vertex AI in background (non-blocking)
@@ -370,21 +383,20 @@ Return your analysis in the JSON format specified in your instructions."""
                 registry.register_agent(
                     agent_name="ThreatAnalysisAgent",
                     endpoint=self.endpoint,
-                    capabilities=["analyze_indicator", "threat_intelligence", "ioc_analysis"]
+                    capabilities=["analyze_indicator", "threat_intelligence", "ioc_analysis", "gti_mcp"]
                 )
                 logger.info("Registered ThreatAnalysisAgent with Vertex AI Agent Registry")
             except Exception as e:
-                logger.warning(f"Failed to register with Vertex AI Agent Registry (continuing anyway): {e}")
+                logger.warning(f"Failed to register with Vertex AI Agent Registry: {e}")
         
         # Start server (this blocks)
         server.run(host='0.0.0.0', debug=False)
 
 
 if __name__ == "__main__":
-    # Run as standalone service
     import sys
     
-    # Configure logging for Cloud Run
+    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -396,7 +408,6 @@ if __name__ == "__main__":
         print("ERROR: GOOGLE_CLOUD_PROJECT environment variable not set", file=sys.stderr)
         sys.exit(1)
     
-    # Cloud Run sets PORT environment variable, fallback to THREAT_AGENT_PORT for local dev
     port = int(os.getenv("PORT", os.getenv("THREAT_AGENT_PORT", "8081")))
     
     logger.info(f"Starting Threat Analysis Agent for project: {project_id}")
@@ -404,7 +415,11 @@ if __name__ == "__main__":
     
     try:
         agent = ThreatAnalysisAgent(project_id)
-        logger.info("Threat Analysis Agent initialized successfully")
+        
+        # Show mode
+        mode = agent.get_mode_indicator()
+        logger.info(f"Agent Mode: {mode['icon']} {mode['mode']} - {mode['tools_count']} tools available")
+        
         agent.start_a2a_server(port=port, register=True)
     except Exception as e:
         logger.error(f"Failed to start Threat Analysis Agent: {e}", exc_info=True)
