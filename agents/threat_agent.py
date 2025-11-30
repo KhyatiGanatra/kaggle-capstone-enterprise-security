@@ -46,30 +46,43 @@ def create_gti_mcp_toolset() -> Optional[McpToolset]:
     Returns:
         McpToolset if VT_APIKEY is available, None otherwise
     """
+    import shutil
+    
     vt_api_key = os.getenv("VT_APIKEY", "")
     
     if not vt_api_key or vt_api_key.startswith("your-"):
         logger.warning("VT_APIKEY not set - GTI MCP tools will not be available")
         return None
     
+    # Check if gti_mcp CLI is available
+    gti_mcp_path = shutil.which('gti_mcp')
+    logger.info(f"gti_mcp binary path: {gti_mcp_path}")
+    
+    if not gti_mcp_path:
+        logger.error("gti_mcp CLI not found in PATH - cannot create MCP toolset")
+        return None
+    
     try:
+        logger.info("Creating MCP connection params...")
         connection_params = StdioConnectionParams(
             server_params=StdioServerParameters(
-                command='gti_mcp',
+                command=gti_mcp_path,  # Use full path
                 args=[],
                 env={
                     'VT_APIKEY': vt_api_key,
+                    'PATH': os.environ.get('PATH', ''),
                 }
             ),
-            timeout=30.0  # Allow time for complex queries
+            timeout=60.0  # Increased timeout for cloud environments
         )
         
+        logger.info("Creating McpToolset...")
         toolset = McpToolset(connection_params=connection_params)
         logger.info("✓ GTI MCP Toolset created successfully")
         return toolset
         
     except Exception as e:
-        logger.error(f"Failed to create GTI MCP Toolset: {e}")
+        logger.error(f"Failed to create GTI MCP Toolset: {e}", exc_info=True)
         return None
 
 
