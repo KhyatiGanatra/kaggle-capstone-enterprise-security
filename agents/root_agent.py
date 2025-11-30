@@ -406,7 +406,7 @@ IMPORTANT:
         
         # Try A2A first (for distributed deployment)
         if self.threat_agent_endpoint:
-        try:
+            try:
             result = self.a2a_client.invoke_agent(
                 agent_name="ThreatAnalysisAgent",
                 method="analyze_indicator",
@@ -445,7 +445,7 @@ IMPORTANT:
         
         # Try A2A first (for distributed deployment)
         if self.incident_agent_endpoint:
-        try:
+            try:
             result = self.a2a_client.invoke_agent(
                 agent_name="IncidentResponseAgent",
                 method="handle_incident",
