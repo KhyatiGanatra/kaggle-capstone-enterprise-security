@@ -10,6 +10,10 @@ from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
+# Fix async event loop conflicts (Streamlit + MCP)
+import nest_asyncio
+nest_asyncio.apply()
+
 from google import adk
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.run_config import RunConfig
