@@ -407,7 +407,7 @@ IMPORTANT:
         # Try A2A first (for distributed deployment)
         if self.threat_agent_endpoint:
             try:
-            result = self.a2a_client.invoke_agent(
+                result = self.a2a_client.invoke_agent(
                 agent_name="ThreatAnalysisAgent",
                 method="analyze_indicator",
                 params={
@@ -417,8 +417,8 @@ IMPORTANT:
                 },
                 endpoint=self.threat_agent_endpoint
             )
-            return result
-        except Exception as e:
+                return result
+            except Exception as e:
                 logger.warning(f"A2A call failed, falling back to direct: {e}")
         
         # Use pre-initialized agent if available (avoids MCP re-initialization)
@@ -446,7 +446,7 @@ IMPORTANT:
         # Try A2A first (for distributed deployment)
         if self.incident_agent_endpoint:
             try:
-            result = self.a2a_client.invoke_agent(
+                result = self.a2a_client.invoke_agent(
                 agent_name="IncidentResponseAgent",
                 method="handle_incident",
                 params={
@@ -455,8 +455,8 @@ IMPORTANT:
                 },
                 endpoint=self.incident_agent_endpoint
             )
-            return result
-        except Exception as e:
+                return result
+            except Exception as e:
                 logger.warning(f"A2A call failed, falling back to direct: {e}")
         
         # Use pre-initialized agent if available
