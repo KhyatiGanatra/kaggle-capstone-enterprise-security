@@ -19,6 +19,19 @@ COPY agents/incident_agent.py ./agents/
 # Create __init__.py files if needed
 RUN touch shared/__init__.py && touch agents/__init__.py
 
+# Create ADK web UI agent structure
+RUN mkdir -p adk_web_ui/incident_agent && \
+    echo '"""Incident Response Agent for ADK Web UI"""' > adk_web_ui/incident_agent/__init__.py && \
+    cat > adk_web_ui/incident_agent/agent.py << 'EOF'
+import os
+import sys
+sys.path.insert(0, '/app')
+from agents.incident_agent import IncidentResponseAgent
+project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "kaggle-adk-capstone-secmon")
+incident_agent = IncidentResponseAgent(project_id)
+root_agent = incident_agent.agent
+EOF
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 # Cloud Run will set PORT env var automatically (defaults to 8080)

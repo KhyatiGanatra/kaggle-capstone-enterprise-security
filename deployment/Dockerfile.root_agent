@@ -19,6 +19,20 @@ COPY agents/root_agent.py ./agents/
 # Create __init__.py files if needed
 RUN touch shared/__init__.py && touch agents/__init__.py
 
+# Create ADK web UI agent structure
+RUN mkdir -p adk_web_ui/root_agent && \
+    echo '"""Root Orchestrator Agent for ADK Web UI"""' > adk_web_ui/root_agent/__init__.py && \
+    cat > adk_web_ui/root_agent/agent.py << 'EOF'
+import os
+import sys
+sys.path.insert(0, '/app')
+from agents.root_agent import RootOrchestratorAgent
+project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "kaggle-adk-capstone-secmon")
+location = os.getenv("VERTEX_AI_LOCATION", "us-central1")
+orchestrator = RootOrchestratorAgent(project_id, location)
+root_agent = orchestrator.agent
+EOF
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
@@ -28,6 +42,7 @@ EXPOSE 8080
 
 # Run the agent
 CMD ["python", "-m", "agents.root_agent"]
+
 
 
 
