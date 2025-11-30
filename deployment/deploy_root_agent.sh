@@ -100,6 +100,3 @@ echo "ROOT_AGENT_ENDPOINT=${ENDPOINT}" >> "${ENV_FILE}"
 echo "✓ Written ROOT_AGENT_ENDPOINT to ${ENV_FILE}"
 
 echo "Deployment complete!"
-
-
-

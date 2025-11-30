@@ -1,8 +1,8 @@
 [project]
-name = "kaggle-capstone-enterprise-security"
-version = "0.1.0"
-description = "Multi-Agent Security System - Production Edition"
-requires-python = ">=3.9"
+name = "argus-security"
+version = "3.0.0"
+description = "Argus - Multi-Agent Security Platform powered by Google ADK + GTI MCP"
+requires-python = ">=3.11"
 dependencies = [
     # Google ADK and AI
     "google-adk>=0.1.0",
@@ -35,4 +35,6 @@ dependencies = [
     "python-json-logger>=2.0.7",
     # Type Hints
     "typing-extensions>=4.8.0",
+    "gti-mcp>=0.1.2",
+    "nest-asyncio>=1.6.0",
 ]
