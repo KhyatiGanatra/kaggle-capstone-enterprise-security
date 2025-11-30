@@ -13,6 +13,18 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # =============================================================================
+# STREAMLIT CLOUD SECRETS SUPPORT
+# =============================================================================
+# Load secrets from Streamlit Cloud if available (for deployment)
+try:
+    if hasattr(st, 'secrets'):
+        for key in ['VT_APIKEY', 'GOOGLE_API_KEY', 'GOOGLE_CLOUD_PROJECT']:
+            if key in st.secrets:
+                os.environ[key] = st.secrets[key]
+except Exception:
+    pass  # Running locally with .env
+
+# =============================================================================
 # ICONS - Professional Security Icons (Phosphor/Heroicons Style)
 # =============================================================================
 

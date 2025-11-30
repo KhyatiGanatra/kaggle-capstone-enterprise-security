@@ -244,7 +244,7 @@ OUTPUT FORMAT:
                 name="ThreatAnalysisAgent",
                 model="gemini-2.0-flash",
                 instruction=instruction,
-                tools=self.tools if self.tools else None
+                tools=self.tools  # Always pass list (even if empty)
             )
             
             mode = "LIVE (GTI MCP)" if self.is_live_mode else "DEMO (no tools)"
