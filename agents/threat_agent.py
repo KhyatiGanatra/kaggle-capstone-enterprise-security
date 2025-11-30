@@ -60,10 +60,18 @@ def create_gti_mcp_toolset() -> Optional[McpToolset]:
     
     # Check if gti_mcp CLI is available
     gti_mcp_path = shutil.which('gti_mcp')
+    
+    # Fallback: check virtual environment bin directory
+    if not gti_mcp_path:
+        import sys
+        venv_bin = os.path.join(os.path.dirname(sys.executable), 'gti_mcp')
+        if os.path.exists(venv_bin):
+            gti_mcp_path = venv_bin
+    
     logger.info(f"gti_mcp binary path: {gti_mcp_path}")
     
     if not gti_mcp_path:
-        logger.error("gti_mcp CLI not found in PATH - cannot create MCP toolset")
+        logger.error("gti_mcp CLI not found in PATH or venv - cannot create MCP toolset")
         return None
     
     try:
@@ -106,7 +114,7 @@ async def get_mcp_tools(toolset: McpToolset) -> List:
 # =============================================================================
 
 def run_agent_sync(agent, message: str) -> str:
-    """Helper function to run an ADK agent synchronously"""
+    """Helper function to run an ADK agent synchronously with tool calling support"""
     async def _run_async():
         session_service = InMemorySessionService()
         session = Session(
@@ -125,20 +133,37 @@ def run_agent_sync(agent, message: str) -> str:
             run_config=run_config
         )
         
-        content_parts = []
+        final_text = ""
+        tool_results = []
+        
         async for event in agent.run_async(context):
-            if hasattr(event, 'content'):
-                content_parts.append(event.content)
-            elif hasattr(event, 'text'):
-                content_parts.append(event.text)
-            elif isinstance(event, str):
-                content_parts.append(event)
+            # Log event type for debugging
+            event_type = type(event).__name__
+            logger.debug(f"Event type: {event_type}")
+            
+            # Extract text from various event formats
+            if hasattr(event, 'content') and event.content:
+                content = event.content
+                if hasattr(content, 'parts'):
+                    for part in content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            final_text = part.text  # Keep last text response
+                        if hasattr(part, 'function_response'):
+                            tool_results.append(str(part.function_response))
+                elif hasattr(content, 'text'):
+                    final_text = content.text
+            elif hasattr(event, 'text') and event.text:
+                final_text = event.text
             elif hasattr(event, 'parts'):
                 for part in event.parts:
-                    if hasattr(part, 'text'):
-                        content_parts.append(part.text)
+                    if hasattr(part, 'text') and part.text:
+                        final_text = part.text
         
-        return ''.join(str(part) for part in content_parts if part)
+        # If we have tool results but no final text, format tool results
+        if tool_results and not final_text:
+            return '\n'.join(tool_results)
+        
+        return final_text or "No response generated"
     
     try:
         return asyncio.run(_run_async())
@@ -227,20 +252,24 @@ Please ensure VT_APIKEY is set correctly."""
 
 {tools_description}
 
-WORKFLOW:
-1. When given an indicator, identify its type:
-   - IP address → use get_ip_address_report
-   - Domain → use get_domain_report  
-   - File hash (MD5/SHA1/SHA256) → use get_file_report
-   - URL → use get_url_report
+CRITICAL: You MUST call a tool for EVERY analysis request. NEVER respond without first calling the appropriate tool.
 
-2. Analyze the results and provide:
+WORKFLOW:
+1. When given an indicator, IMMEDIATELY call the appropriate tool:
+   - IP address → CALL get_ip_address_report(ip="<the IP>")
+   - Domain → CALL get_domain_report(domain="<the domain>")
+   - File hash (MD5/SHA1/SHA256) → CALL get_file_report(hash="<the hash>")
+   - URL → CALL get_url_report(url="<the URL>")
+
+2. AFTER receiving tool results, analyze and provide:
    - Severity assessment (CRITICAL/HIGH/MEDIUM/LOW)
    - Confidence level (0-100)
    - Threat type identification
    - Recommended actions
 
 3. For deeper investigation, use related entity tools to find connections.
+
+IMPORTANT: Do NOT say "I'm ready" or ask for input. You already have the indicator - call the tool NOW.
 
 OUTPUT FORMAT:
 {{
@@ -281,98 +310,245 @@ OUTPUT FORMAT:
             "icon": "🟢" if self.is_live_mode else "🟡"
         }
     
-    def analyze_indicator(self, indicator: str, indicator_type: str, context: str = "") -> dict:
-        """Analyze a security indicator using GTI MCP tools"""
+    def _get_tool_by_name(self, name: str):
+        """Find a tool by name"""
+        for tool in self.tools:
+            if tool.name == name:
+                return tool
+        return None
+    
+    def _call_tool_directly(self, tool_name: str, **kwargs) -> dict:
+        """Directly call an MCP tool using the raw MCP client"""
+        from mcp import ClientSession, StdioServerParameters
+        from mcp.client.stdio import stdio_client
+        import shutil
         
-        # Check mode
+        async def _call():
+            # Find gti_mcp binary
+            gti_mcp_path = shutil.which('gti_mcp')
+            if not gti_mcp_path:
+                # Check in venv
+                venv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.venv', 'bin', 'gti_mcp')
+                if os.path.exists(venv_path):
+                    gti_mcp_path = venv_path
+            
+            if not gti_mcp_path:
+                return {"error": "gti_mcp binary not found"}
+            
+            try:
+                server_params = StdioServerParameters(
+                    command=gti_mcp_path,
+                    args=[],
+                    env=dict(os.environ)  # Pass full environment including VT_APIKEY
+                )
+                
+                async with stdio_client(server_params) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        
+                        # Call the tool
+                        result = await session.call_tool(tool_name, kwargs)
+                        
+                        if result.isError:
+                            error_msg = result.content[0].text if result.content else "Unknown error"
+                            return {"error": error_msg}
+                        
+                        # Parse the response
+                        if result.content and hasattr(result.content[0], 'text'):
+                            try:
+                                data = json.loads(result.content[0].text)
+                                return {"success": True, "data": data}
+                            except json.JSONDecodeError:
+                                return {"success": True, "data": result.content[0].text}
+                        
+                        return {"success": True, "data": str(result)}
+                        
+            except Exception as e:
+                logger.error(f"Tool call failed: {e}")
+                return {"error": str(e)}
+        
+        return asyncio.run(_call())
+    
+    def _parse_vt_response(self, indicator: str, indicator_type: str, raw_data: dict) -> dict:
+        """Parse VirusTotal response into a structured analysis result"""
+        
+        # Handle nested structure - VT returns data in 'attributes' key
+        attributes = raw_data.get('attributes', raw_data)
+        
+        # Get last analysis stats
+        last_analysis_stats = attributes.get('last_analysis_stats', {})
+        malicious = last_analysis_stats.get('malicious', 0)
+        suspicious = last_analysis_stats.get('suspicious', 0)
+        harmless = last_analysis_stats.get('harmless', 0)
+        undetected = last_analysis_stats.get('undetected', 0)
+        total = malicious + suspicious + harmless + undetected
+        
+        # Calculate detection ratio
+        if total > 0:
+            detection_ratio = f"{malicious}/{total}"
+            detection_pct = (malicious / total) * 100
+        else:
+            detection_ratio = "0/0"
+            detection_pct = 0
+        
+        # Determine severity based on detection percentage and reputation
+        reputation = attributes.get('reputation', 0)
+        
+        if malicious >= 10 or detection_pct >= 20:
+            severity = "CRITICAL"
+            confidence = 95
+        elif malicious >= 5 or detection_pct >= 10:
+            severity = "HIGH"
+            confidence = 85
+        elif malicious >= 2 or detection_pct >= 5 or reputation < -50:
+            severity = "MEDIUM"
+            confidence = 70
+        elif malicious >= 1 or suspicious >= 3:
+            severity = "LOW"
+            confidence = 55
+        else:
+            severity = "INFO"
+            confidence = 40
+        
+        # Build structured result
+        result = {
+            "indicator": indicator,
+            "indicator_type": indicator_type,
+            "severity": severity,
+            "confidence": confidence,
+            "detection_ratio": detection_ratio,
+            "reputation": reputation,
+            "source": "VirusTotal GTI",
+            "analyzed_at": datetime.now().isoformat(),
+        }
+        
+        # Add type-specific fields
+        if indicator_type == "ip":
+            result["asn"] = attributes.get('asn')
+            result["asn_owner"] = attributes.get('as_owner')
+            result["country"] = attributes.get('country')
+            result["network"] = attributes.get('network')
+            result["continent"] = attributes.get('continent')
+            
+            # Get crowdsourced context if available
+            crowdsourced = attributes.get('crowdsourced_context', [])
+            if crowdsourced:
+                result["threat_context"] = [
+                    {
+                        "title": ctx.get('title', ''),
+                        "severity": ctx.get('severity', ''),
+                        "details": ctx.get('details', '')[:200]
+                    }
+                    for ctx in crowdsourced[:3]  # Top 3
+                ]
+        
+        elif indicator_type == "domain":
+            result["registrar"] = attributes.get('registrar')
+            result["creation_date"] = attributes.get('creation_date')
+            categories = attributes.get('categories', {})
+            result["categories"] = list(categories.values()) if categories else []
+        
+        elif indicator_type == "hash":
+            result["file_type"] = attributes.get('type_description')
+            result["file_size"] = attributes.get('size')
+            result["names"] = attributes.get('names', [])[:5]  # First 5 names
+            result["threat_label"] = attributes.get('popular_threat_classification', {}).get('suggested_threat_label')
+        
+        elif indicator_type == "url":
+            result["final_url"] = attributes.get('last_final_url')
+            result["title"] = attributes.get('title')
+            
+        # Add recommendations
+        if severity in ["CRITICAL", "HIGH"]:
+            result["recommendations"] = [
+                "🚨 Immediate block recommended",
+                "Investigate all connections to/from this indicator",
+                "Check for lateral movement",
+                "Collect forensic evidence"
+            ]
+        elif severity == "MEDIUM":
+            result["recommendations"] = [
+                "⚠️ Monitor closely",
+                "Add to watchlist",
+                "Investigate if associated with suspicious activity"
+            ]
+        else:
+            result["recommendations"] = [
+                "✅ No immediate action required",
+                "Continue monitoring"
+            ]
+        
+        return result
+    
+    def analyze_indicator(self, indicator: str, indicator_type: str, context: str = "") -> dict:
+        """Analyze a security indicator using GTI MCP tools - DIRECT TOOL CALLING"""
+        
         mode_info = self.get_mode_indicator()
         
-        # Retrieve historical data from memory (if available)
-        historical_data = []
-        if self.memory:
-            try:
-                historical_data = self.memory.retrieve_threat_history(indicator)
-            except Exception as e:
-                logger.warning(f"Failed to retrieve historical data: {e}")
+        # Map indicator types to tools (using correct MCP parameter names)
+        tool_map = {
+            "ip": ("get_ip_address_report", {"ip_address": indicator}),
+            "domain": ("get_domain_report", {"domain": indicator}),
+            "hash": ("get_file_report", {"hash": indicator}),
+            "url": ("get_url_report", {"url": indicator}),
+        }
         
-        # Build analysis request
-        analysis_prompt = f"""Analyze this security indicator:
-
-Indicator: {indicator}
-Type: {indicator_type}
-
-{f'Additional Context: {context}' if context else ''}
-
-Historical Intelligence:
-{json.dumps(historical_data, indent=2, default=str) if historical_data else 'No historical data found'}
-
-Please:
-1. Use the appropriate GTI MCP tool to analyze this {indicator_type}
-2. Assess the threat level and confidence
-3. Identify any associated threats, malware families, or threat actors
-4. Provide specific detection and mitigation recommendations
-
-Return your analysis in the JSON format specified in your instructions."""
-
-        # Run analysis
-        try:
-            content = run_agent_sync(self.agent, analysis_prompt)
-        except Exception as e:
-            logger.error(f"Error running agent: {e}")
-            return {
-                "success": False, 
-                "error": str(e),
-                "mode": mode_info
-            }
+        # Determine tool to use
+        tool_info = tool_map.get(indicator_type.lower())
         
-        # Parse and store result
-        try:
-            if '{' in content and '}' in content:
-                json_start = content.find('{')
-                json_end = content.rfind('}') + 1
-                json_str = content[json_start:json_end]
-                analysis_result = json.loads(json_str)
+        if not tool_info and self.is_live_mode:
+            # Try to auto-detect type
+            if indicator.replace('.', '').isdigit() or ':' in indicator:
+                tool_info = tool_map["ip"]
+            elif '/' in indicator or indicator.startswith('http'):
+                tool_info = tool_map["url"]
+            elif len(indicator) in [32, 40, 64] and indicator.isalnum():
+                tool_info = tool_map["hash"]
             else:
-                analysis_result = {
-                    "indicator": indicator,
-                    "indicator_type": indicator_type,
-                    "analysis": content,
-                    "analyzed_at": datetime.now().isoformat()
+                tool_info = tool_map["domain"]
+        
+        # If live mode, call the tool directly
+        if self.is_live_mode and tool_info and self.tools:
+            tool_name, tool_args = tool_info
+            logger.info(f"Calling {tool_name} with {tool_args}")
+            
+            tool_result = self._call_tool_directly(tool_name, **tool_args)
+            
+            if tool_result.get("success"):
+                raw_data = tool_result.get("data", {})
+                
+                # Parse VT response
+                analysis_result = self._parse_vt_response(indicator, indicator_type, raw_data)
+                analysis_result["source"] = "VirusTotal GTI"
+                
+                return {
+                    "success": True,
+                    "analysis": analysis_result,
+                    "raw_response": str(raw_data)[:1000],
+                    "mode": mode_info
                 }
-            
-            # Add mode info
-            analysis_result["source"] = mode_info["source"]
-            
-            # Store in memory (if available)
-            if self.memory:
-                try:
-                    self.memory.store_threat_analysis(analysis_result)
-                except Exception as e:
-                    logger.warning(f"Failed to store analysis in memory: {e}")
-            
-            return {
-                "success": True,
-                "analysis": analysis_result,
-                "raw_response": content,
-                "mode": mode_info
-            }
-            
-        except json.JSONDecodeError as e:
-            logger.warning(f"Warning: Could not parse JSON from response: {e}")
-            return {
-                "success": False,
-                "error": "JSON parse error",
-                "raw_response": content,
-                "mode": mode_info
-            }
-        except Exception as e:
-            logger.error(f"Error in analysis: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "raw_response": content,
-                "mode": mode_info
-            }
+            else:
+                logger.warning(f"Tool call failed: {tool_result.get('error')}")
+        
+        # Fallback to demo mode response
+        analysis_result = {
+            "indicator": indicator,
+            "indicator_type": indicator_type,
+            "severity": "UNKNOWN",
+            "confidence": 0,
+            "threat_type": "unknown",
+            "detection_ratio": "N/A",
+            "source": mode_info["source"],
+            "analyzed_at": datetime.now().isoformat(),
+            "recommendations": ["Analysis unavailable - running in demo mode"]
+        }
+        
+        return {
+            "success": True,
+            "analysis": analysis_result,
+            "raw_response": "",
+            "mode": mode_info
+        }
     
     async def close(self):
         """Clean up MCP toolset connection"""

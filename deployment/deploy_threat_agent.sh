@@ -52,6 +52,16 @@ ENDPOINT=$(gcloud run services describe ${SERVICE_NAME} \
 echo "Threat Analysis Agent deployed!"
 echo "Endpoint: ${ENDPOINT}"
 
+# Write endpoint to .env file for root agent discovery
+ENV_FILE="${PROJECT_ROOT}/.env.agents"
+# Remove old THREAT_AGENT_ENDPOINT if exists, then add new one
+if [ -f "${ENV_FILE}" ]; then
+    grep -v "^THREAT_AGENT_ENDPOINT=" "${ENV_FILE}" > "${ENV_FILE}.tmp" || true
+    mv "${ENV_FILE}.tmp" "${ENV_FILE}"
+fi
+echo "THREAT_AGENT_ENDPOINT=${ENDPOINT}" >> "${ENV_FILE}"
+echo "✓ Written THREAT_AGENT_ENDPOINT to ${ENV_FILE}"
+
 # Register in Vertex AI Agent Registry
 echo "Registering agent in Vertex AI Agent Registry..."
 python3 -c "
