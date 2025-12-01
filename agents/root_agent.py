@@ -58,11 +58,13 @@ def run_agent_sync(agent, message: str) -> Dict[str, Any]:
             run_config=run_config
         )
         
-        text_parts = []
+        final_text = ""
         trace = []
+        all_text_parts = []  # Collect all text for debugging
         
         async for event in agent.run_async(context):
             event_type = type(event).__name__
+            logger.debug(f"[ADK] Event type: {event_type}")
             
             # Track tool calls
             if hasattr(event, 'tool_code') or hasattr(event, 'function_call'):
@@ -73,30 +75,59 @@ def run_agent_sync(agent, message: str) -> Dict[str, Any]:
                 })
             
             # Extract text from various event types
-            # Handle Content objects with parts
-            if hasattr(event, 'parts') and event.parts:
-                for part in event.parts:
-                    # Part has text attribute
-                    if hasattr(part, 'text') and part.text:
-                        text_parts.append(part.text)
-            # Handle direct text attribute
-            elif hasattr(event, 'text') and event.text:
-                text_parts.append(event.text)
-            # Handle string events
-            elif isinstance(event, str):
-                text_parts.append(event)
-            # Handle content that might be a string
-            elif hasattr(event, 'content'):
+            # Priority: Look for model response text (not tool responses)
+            event_text = None
+            
+            # Method 1: Check for content.parts (most common for model responses)
+            if hasattr(event, 'content') and event.content:
                 content = event.content
-                if isinstance(content, str):
-                    text_parts.append(content)
-                elif hasattr(content, 'parts'):
+                if hasattr(content, 'parts') and content.parts:
                     for part in content.parts:
+                        # Skip function_response (tool results) - we want model text
+                        if hasattr(part, 'function_response'):
+                            continue
                         if hasattr(part, 'text') and part.text:
-                            text_parts.append(part.text)
+                            event_text = part.text
+                            all_text_parts.append(("content.parts.text", event_text))
+                elif hasattr(content, 'text') and content.text:
+                    event_text = content.text
+                    all_text_parts.append(("content.text", event_text))
+            
+            # Method 2: Check for direct parts attribute
+            elif hasattr(event, 'parts') and event.parts:
+                for part in event.parts:
+                    if hasattr(part, 'function_response'):
+                        continue  # Skip tool responses
+                    if hasattr(part, 'text') and part.text:
+                        event_text = part.text
+                        all_text_parts.append(("parts.text", event_text))
+            
+            # Method 3: Check for direct text attribute
+            elif hasattr(event, 'text') and event.text:
+                event_text = event.text
+                all_text_parts.append(("text", event_text))
+            
+            # Method 4: Handle string events
+            elif isinstance(event, str):
+                event_text = event
+                all_text_parts.append(("str", event_text))
+            
+            # Update final_text with the latest non-empty text
+            # This ensures we get the final model response, not intermediate tool responses
+            if event_text and event_text.strip():
+                final_text = event_text
+                logger.debug(f"[ADK] Captured text ({len(final_text)} chars): {final_text[:100]}...")
         
-        # Join only actual text strings
-        final_text = ''.join(text_parts)
+        # Log all captured text parts for debugging
+        if all_text_parts:
+            logger.debug(f"[ADK] Total text parts captured: {len(all_text_parts)}")
+            for i, (source, text) in enumerate(all_text_parts):
+                logger.debug(f"[ADK] Part {i+1} from {source}: {text[:50]}...")
+        
+        # If we didn't capture any text, log warning
+        if not final_text or not final_text.strip():
+            logger.warning(f"[ADK] No final text captured. All parts: {all_text_parts}")
+        
         return {"text": final_text, "trace": trace}
     
     try:
@@ -580,7 +611,7 @@ IMPORTANT:
             # Run the ADK agent - it will call tools (analyze_threat, execute_quick_action, etc.)
             # and the responses will flow back through the ADK execution stream
             result = run_agent_sync(self.agent, user_message)
-            
+            logger.info(f"[ARGUS] ADK agent result: {result}")
             response_text = result.get("text", "")
             trace = result.get("trace", [])
             
