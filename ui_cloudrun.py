@@ -509,7 +509,7 @@ with tab_chat:
                 or take response actions. Try:
             </p>
             <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; margin-top: 1.5rem;">
-                <code style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.85rem;">"Analyze 203.0.113.42"</code>
+                <code style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.85rem;">"Analyze IP 203.0.113.42"</code>
                 <code style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.85rem;">"Check if evil-domain.com is malicious"</code>
                 <code style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border-radius: 6px; font-size: 0.85rem;">"Block IP 10.0.0.1"</code>
             </div>
