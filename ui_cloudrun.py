@@ -562,7 +562,12 @@ The UI will automatically retry the health check when you refresh."""
                         )
                         response_text = result.get("result", {}).get("text", "I encountered an error processing your request.")
                         response_trace = result.get("result", {}).get("trace", [])
-                        response = response_text + "\n\n" + "\n".join(trace_to_markdown(response_trace))
+                        st.error(f"[ARGUS] Response trace: {response_trace}")
+                        st.error(f"[ARGUS] Response text: {response_text}")
+                        
+                        response = response_text + "\n\n" + "\n".join(response_trace)
+                        st.error(f"[ARGUS] Response: {response}")
+                        st.error(f"[ARGUS] RESULT type: {result}")
                     except Exception as e:
                         response = f"❌ Error calling Cloud Run agent: {str(e)}\n\n**Endpoint:** `{endpoints['root']}`\n\nPlease check the Cloud Run service logs for details."
             
