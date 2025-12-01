@@ -560,7 +560,9 @@ The UI will automatically retry the health check when you refresh."""
                             {"user_message": prompt},
                             agent_name="RootOrchestratorAgent"
                         )
-                        response = result.get("result", {}).get("text", "I encountered an error processing your request.")
+                        response_text = result.get("result", {}).get("text", "I encountered an error processing your request.")
+                        response_trace = result.get("result", {}).get("trace", [])
+                        response = response_text + '\n' + response_trace
                     except Exception as e:
                         response = f"❌ Error calling Cloud Run agent: {str(e)}\n\n**Endpoint:** `{endpoints['root']}`\n\nPlease check the Cloud Run service logs for details."
             
