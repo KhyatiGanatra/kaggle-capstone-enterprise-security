@@ -47,6 +47,146 @@ A distributed multi-agent security system built with **Google ADK** and **GTI MC
 
 ## 🚀 Quick Start
 
+**Backend Agent services - Deployment**
+
+Components
+Agents
+RootOrchestratorAgent (agents/root_agent.py)
+
+Coordinates all sub-agents
+Discovers agents from Vertex AI Agent Registry
+Makes decisions on threat response
+Manages session and persistent memory
+ThreatAnalysisAgent (agents/threat_agent.py)
+
+Analyzes security indicators using Google Threat Intelligence (GTI)
+Provides threat severity assessment
+Maps threats to MITRE ATT&CK techniques
+Stores findings in BigQuery
+IncidentResponseAgent (agents/incident_agent.py)
+
+Handles security incidents using Chronicle SecOps and SOAR
+Executes automated response playbooks
+Manages incident lifecycle
+Documents incident timeline
+Shared Components
+A2A Protocol (shared/a2a_client.py, shared/a2a_server.py)
+
+HTTPS-based communication between agents
+Standardized request/response format
+Authentication via Google Cloud credentials
+Vertex AI Agent Registry (shared/vertex_registry.py)
+
+Agent registration and discovery
+Endpoint resolution
+Capability-based filtering
+Memory Management (shared/memory.py)
+
+BigQuery-based persistent storage
+Threat intelligence history
+Incident tracking
+Prerequisites
+Python 3.9+
+Google Cloud Project with:
+Vertex AI API enabled
+BigQuery API enabled
+Service account with appropriate permissions
+Google AI API key (for Gemini models)
+Environment variables configured (see Configuration section)
+Installation
+Clone the repository:
+git clone <repository-url>
+cd kaggle-capstone-entr-sec
+Install dependencies:
+pip install -r requirements.txt
+Set up Google Cloud authentication:
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+Configure environment variables (see Configuration section)
+Configuration
+Environment Variables
+Create a .env file or set the following environment variables:
+
+# Google Cloud
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account.json"
+
+# Google AI (Gemini)
+export GOOGLE_API_KEY="your-google-ai-api-key"
+
+# Vertex AI
+export VERTEX_AI_LOCATION="us-central1"
+
+# Agent Endpoints (for A2A communication)
+export THREAT_AGENT_ENDPOINT="https://threat-agent.run.app" # Replace with the endpoint got from threat analysis container deployment
+export INCIDENT_AGENT_ENDPOINT="https://incident-agent.run.app" # Replace with the endpoint got from incident agent container deployment
+
+# Chronicle SecOps (optional)
+export CHRONICLE_PROJECT_ID="your-chronicle-project-id"
+export CHRONICLE_CUSTOMER_ID="your-customer-id"
+export CHRONICLE_REGION="us"
+
+# Chronicle SOAR (optional)
+export SOAR_URL="https://your-tenant.siemplify-soar.com:443"
+export SOAR_APP_KEY="your-soar-api-key"
+
+# Google Threat Intelligence / VirusTotal
+export VT_APIKEY="your-virustotal-api-key"
+
+Running Locally
+Start Threat Analysis Agent
+python -m agents.threat_agent
+The agent will start an A2A server on port 8081 (configurable via THREAT_AGENT_PORT).
+
+Start Incident Response Agent
+python -m agents.incident_agent
+The agent will start an A2A server on port 8082 (configurable via INCIDENT_AGENT_PORT).
+
+Run Root Orchestrator
+python -m agents.root_agent
+The orchestrator will discover sub-agents from Vertex AI Registry and process security events.
+
+Deployment to Vertex AI
+Deploy Individual Agents
+Each agent can be deployed independently to Vertex AI:
+
+1. Deploy Threat Analysis Agent
+cd deployment
+./deploy_threat_agent.sh
+2. Deploy Incident Response Agent
+./deploy_incident_agent.sh
+3. Deploy Root Orchestrator
+./deploy_root_agent.sh
+Using Deployment Scripts
+The deployment scripts in deployment/ directory handle:
+
+Building container images
+Pushing to Google Container Registry
+Deploying to Vertex AI
+Registering agents in Vertex AI Agent Registry
+Setting up HTTPS endpoints
+Testing
+Run the test suite:
+**
+Backend Tests**
+
+# Run all tests
+python -m pytest tests/
+
+# Run specific test file
+python -m pytest tests/test_threat_agent.py
+
+# Run with coverage
+python -m pytest tests/ --cov=agents --cov=shared
+Test Structure
+tests/test_threat_agent.py - Threat Analysis Agent tests
+tests/test_incident_agent.py - Incident Response Agent tests
+tests/test_root_agent.py - Root Orchestrator tests
+tests/test_a2a.py - A2A protocol tests
+tests/test_integration.py - End-to-end integration tests
+
+
+
 ### 1. Install Dependencies
 
 ```bash
