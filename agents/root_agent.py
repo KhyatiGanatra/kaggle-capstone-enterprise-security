@@ -7,6 +7,10 @@ import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
+# Fix async event loop conflicts (Streamlit + ADK)
+import nest_asyncio
+nest_asyncio.apply()
+
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
