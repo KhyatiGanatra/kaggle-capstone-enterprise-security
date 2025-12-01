@@ -539,7 +539,8 @@ IMPORTANT:
         except Exception as e:
             logger.warning(f"Could not get threat agent mode: {e}")
         
-            return {
+        # Return mode indicator (outside try/except)
+        return {
             "threat_agent": threat_mode,
             "incident_agent": incident_mode,
             "overall": "🟢 Live" if threat_mode.get("is_live") else "🟡 Demo"

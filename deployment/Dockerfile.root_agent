@@ -35,13 +35,15 @@ EOF
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 ENV PORT=8080
 
 # Expose port
 EXPOSE 8080
 
 # Run the agent
-CMD ["python", "-m", "agents.root_agent"]
+# Use python from the venv explicitly
+CMD ["/app/.venv/bin/python", "-m", "agents.root_agent"]
 
 
 

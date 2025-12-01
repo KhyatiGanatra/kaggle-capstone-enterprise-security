@@ -54,16 +54,18 @@ else
     echo "⚠ Warning: ${ENV_FILE} not found. Deploy threat and incident agents first."
 fi
 
-# Build environment variables string for gcloud
-ENV_VARS="GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_API_KEY=${GOOGLE_API_KEY},VERTEX_AI_LOCATION=${LOCATION}"
+# Build environment variables for gcloud (use multiple --set-env-vars flags like other agents)
+ENV_VARS_ARGS="--set-env-vars GOOGLE_CLOUD_PROJECT=${PROJECT_ID}"
+ENV_VARS_ARGS="${ENV_VARS_ARGS} --set-env-vars GOOGLE_API_KEY=${GOOGLE_API_KEY}"
+ENV_VARS_ARGS="${ENV_VARS_ARGS} --set-env-vars VERTEX_AI_LOCATION=${LOCATION}"
 
 # Add agent endpoints if found
 if [ -n "${THREAT_ENDPOINT}" ]; then
-    ENV_VARS="${ENV_VARS},THREAT_AGENT_ENDPOINT=${THREAT_ENDPOINT}"
+    ENV_VARS_ARGS="${ENV_VARS_ARGS} --set-env-vars THREAT_AGENT_ENDPOINT=${THREAT_ENDPOINT}"
 fi
 
 if [ -n "${INCIDENT_ENDPOINT}" ]; then
-    ENV_VARS="${ENV_VARS},INCIDENT_AGENT_ENDPOINT=${INCIDENT_ENDPOINT}"
+    ENV_VARS_ARGS="${ENV_VARS_ARGS} --set-env-vars INCIDENT_AGENT_ENDPOINT=${INCIDENT_ENDPOINT}"
 fi
 
 # Deploy to Vertex AI (Cloud Run)
@@ -74,7 +76,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --region ${LOCATION} \
   --project ${PROJECT_ID} \
   --allow-unauthenticated \
-  --set-env-vars ${ENV_VARS} \
+  ${ENV_VARS_ARGS} \
   --memory 4Gi \
   --cpu 4 \
   --timeout 600
