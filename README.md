@@ -28,21 +28,62 @@ A distributed multi-agent security system built with **Google ADK** and **GTI MC
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    ROOT ORCHESTRATOR (Argus)                │
-│                    Coordinates workflow via chat            │
-└─────────────────────────────┬───────────────────────────────┘
-                              │ A2A Protocol (HTTPS)
-              ┌───────────────┴───────────────┐
-              ▼                               ▼
-┌─────────────────────────┐     ┌─────────────────────────┐
-│   THREAT ANALYSIS       │     │   INCIDENT RESPONSE     │
-│   AGENT                 │     │   AGENT                 │
-│                         │     │                         │
-│   • GTI MCP Server      │     │   • Simulated SOAR      │
-│   • 35+ VT Tools        │     │   • Case Management     │
-│   • IOC Analysis        │     │   • Containment Actions │
-└─────────────────────────┘     └─────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              USER INTERFACE                                  │
+│                            (Streamlit - ui.py)                              │
+│                                                                              │
+│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐       │
+│   │ Argus Chat  │  │ Threat Intel│  │ Incident    │  │ Activity    │       │
+│   │    Tab      │  │    Tab      │  │ Response Tab│  │ Log Tab     │       │
+│   └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           ROOT ORCHESTRATOR AGENT                           │
+│                            (agents/root_agent.py)                           │
+│                                                                              │
+│   • Natural language understanding                                          │
+│   • Intent detection (analyze vs. respond vs. block)                        │
+│   • Indicator extraction (IP, domain, hash, URL)                            │
+│   • Sub-agent delegation                                                    │
+│   • Response formatting (Markdown)                                          │
+│                                                                              │
+│   Routing Priority:                                                          │
+│   1. A2A Protocol (HTTP) → Deployed agents on Cloud Run                     │
+│   2. Pre-initialized instance → Passed from UI                              │
+│   3. Direct instantiation → Fallback for local development                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+                    │                               │
+                    ▼                               ▼
+┌──────────────────────────────┐    ┌──────────────────────────────┐
+│   THREAT ANALYSIS AGENT      │    │   INCIDENT RESPONSE AGENT    │
+│  (agents/threat_agent.py)    │    │  (agents/incident_agent.py)  │
+│                              │    │                              │
+│  • GTI MCP Integration       │    │  • Simulated SOAR Tools      │
+│  • 35 Dynamic Tools          │    │  • Case Management           │
+│  • VirusTotal API            │    │  • Containment Actions       │
+│                              │    │                              │
+│  Tools (from MCP):           │    │  Tools (Simulated):          │
+│  - get_ip_address_report     │    │  - create_case               │
+│  - get_domain_report         │    │  - block_ip                  │
+│  - get_file_report           │    │  - isolate_endpoint          │
+│  - get_url_report            │    │  - disable_user              │
+│  - search_iocs               │    │  - get_case_status           │
+│  - search_threats            │    │  - list_all_cases            │
+│  - search_malware_families   │    │                              │
+│  - + 28 more...              │    │                              │
+└──────────────────────────────┘    └──────────────────────────────┘
+                    │
+                    ▼
+┌──────────────────────────────┐
+│      GTI MCP SERVER          │
+│        (gti_mcp)             │
+│                              │
+│  Protocol: MCP (stdio)       │
+│  Backend: VirusTotal API     │
+│  Auth: VT_APIKEY             │
+└──────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -195,7 +236,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
-### 2. Configure Environment
+### 2. Configure Environment and run agents
 
 ```bash
 # Copy template
@@ -214,18 +255,45 @@ GOOGLE_API_KEY=your-gemini-api-key
 VT_APIKEY=your-virustotal-api-key
 ```
 
-### 3. Run the UI
+## Start Threat Analysis Agent
 
 ```bash
-uv run streamlit run ui.py
+python -m agents.threat_agent
+```
+
+The agent will start an A2A server on port 8081 (configurable via `THREAT_AGENT_PORT`).
+
+### Start Incident Response Agent
+
+```bash
+python -m agents.incident_agent
+```
+
+The agent will start an A2A server on port 8082 (configurable via `INCIDENT_AGENT_PORT`).
+
+### Run Root Orchestrator
+
+```bash
+python -m agents.root_agent
+```
+
+
+### 4. Run the UI
+
+```bash
+uv run streamlit run ui_cloudrun.py
 ```
 
 Open http://localhost:8501 to access the Argus dashboard.
 
-### 4. Run Tests
+### 5.🧪 Testing
 
 ```bash
+# Run all tests
 uv run pytest tests/ -v
+
+# Run with coverage
+uv run pytest tests/ --cov=agents --cov=shared
 ```
 
 ## 📁 Project Structure
@@ -274,71 +342,9 @@ uv run pytest tests/ -v
 "Create an incident case for this threat"
 ```
 
-## 🔧 Configuration
+## 🌐 Production Deployment
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GOOGLE_CLOUD_PROJECT` | Yes | GCP Project ID |
-| `GOOGLE_API_KEY` | Yes | Gemini API key |
-| `VT_APIKEY` | Recommended | VirusTotal API key (enables 35 MCP tools) |
-| `CHRONICLE_PROJECT_ID` | No | Chronicle SecOps project |
-| `SOAR_API_KEY` | No | Chronicle SOAR API key |
-
-## 🌐 Deployment
-
-### Option 1: Streamlit Community Cloud (Recommended for Demos)
-
-**Perfect for Kaggle submissions and demo videos.**
-
-1. **Push to GitHub**
-   ```bash
-   git add .
-   git commit -m "Argus v3.0 - Ready for deployment"
-   git push origin main
-   ```
-
-2. **Deploy on Streamlit Cloud**
-   - Go to [share.streamlit.io](https://share.streamlit.io)
-   - Click "New app"
-   - Select your GitHub repository
-   - Set **Main file path**: `ui.py`
-   - Click "Deploy"
-
-3. **Configure Secrets** (in Streamlit Cloud dashboard)
-   - Go to your app → Settings → Secrets
-   - Add your secrets:
-   ```toml
-   VT_APIKEY = "your-virustotal-api-key"
-   GOOGLE_API_KEY = "your-gemini-api-key"
-   GOOGLE_CLOUD_PROJECT = "your-project-id"
-   ```
-
-4. **Your app is live!** 🎉
-   - URL: `https://your-app-name.streamlit.app`
-   - Share this URL in your Kaggle submission
-
-### Option 2: Cloud Run (Production)
-
-```bash
-# Set environment
-export GOOGLE_CLOUD_PROJECT=your-project-id
-
-# Deploy all agents
-cd deployment
-./deploy_threat_agent.sh
-./deploy_incident_agent.sh
-./deploy_root_agent.sh
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-uv run pytest tests/ -v
-
-# Run with coverage
-uv run pytest tests/ --cov=agents --cov=shared
-```
+    -Refer to Production_setup.md
 
 ## 📊 Mode Indicators
 
