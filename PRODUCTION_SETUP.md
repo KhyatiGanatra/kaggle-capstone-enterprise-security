@@ -1,5 +1,15 @@
 # Production Setup Summary
 
+## Prerequisites
+
+- Python 3.9+
+- Google Cloud Project with:
+  - Vertex AI API enabled
+  - BigQuery API enabled
+  - Service account with appropriate permissions
+- Google AI API key (for Gemini models)
+- Environment variables configured (see Configuration section)
+
 ## Installation
 
 1. Clone the repository:
