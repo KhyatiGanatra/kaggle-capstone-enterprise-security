@@ -4,16 +4,14 @@
 
 A distributed multi-agent security system built with **Google ADK** and **GTI MCP**, designed for enterprise security operations.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-app.streamlit.app)
-
 ---
 
 ## 📋 Kaggle Capstone Submission
 
 | Component | Status |
 |-----------|--------|
-| 🎥 Demo Video | [Watch on YouTube](#) |
-| 🚀 Live Demo | [Launch Argus](#) |
+| 🎥 Demo Video | [Argus in Action](https://youtu.be/rKt1a6eAVUM) |
+| 🚀 Argus Platform | [Launch Argus](https://argus-ai.streamlit.app) |
 | 📦 GitHub Repo | You're here! |
 
 ---
