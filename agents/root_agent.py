@@ -550,8 +550,8 @@ IMPORTANT:
         """
         Process a natural language message from the user.
         
-        Uses explicit routing to delegate to sub-agents based on detected
-        indicators and action keywords in the message.
+        Uses the ADK agent to delegate to sub-agents via tools, ensuring
+        responses flow through the ADK execution stream for web UI visibility.
         
         Args:
             user_message: Natural language message from the user
@@ -559,10 +559,7 @@ IMPORTANT:
         Returns:
             Dictionary with 'text' (structured response) and 'trace' (execution trace)
         """
-        import re
-        
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        trace = []
         
         # Store in conversation history
         self.session_memory["conversation_history"].append({
@@ -571,54 +568,42 @@ IMPORTANT:
             "timestamp": timestamp
         })
         
-        # --- STEP 1: Parse user message for indicators and actions ---
-        message_lower = user_message.lower()
+        # Use ADK agent to process the message - this ensures tool calls
+        # and responses flow through the ADK execution stream
+        logger.info(f"[ARGUS] Processing message via ADK agent: {user_message[:100]}")
         
-        # Detect action keywords
-        is_block_action = any(word in message_lower for word in ['block', 'ban', 'blacklist'])
-        is_isolate_action = any(word in message_lower for word in ['isolate', 'quarantine', 'disconnect'])
-        is_disable_action = any(word in message_lower for word in ['disable', 'suspend', 'lock', 'revoke'])
-        
-        # Extract indicators from message
-        indicators = self._extract_indicators(user_message)
-        
-        logger.info(f"[ARGUS] Parsed message: indicators={indicators}, block={is_block_action}, isolate={is_isolate_action}")
-        
-        # --- STEP 2: Route to appropriate sub-agent ---
-        analysis_result = None
-        action_result = None
-        
-        # Handle quick actions first
-        if is_block_action and indicators.get('ip'):
-            trace.append({"action": "execute_quick_action", "type": "block_ip", "target": indicators['ip']})
-            action_result = self._call_incident_action("block_ip", indicators['ip'])
+        try:
+            # Run the ADK agent - it will call tools (analyze_threat, execute_quick_action, etc.)
+            # and the responses will flow back through the ADK execution stream
+            result = run_agent_sync(self.agent, user_message)
             
-        elif is_isolate_action and indicators.get('hostname'):
-            trace.append({"action": "execute_quick_action", "type": "isolate_endpoint", "target": indicators['hostname']})
-            action_result = self._call_incident_action("isolate_endpoint", indicators['hostname'])
+            response_text = result.get("text", "")
+            trace = result.get("trace", [])
             
-        elif is_disable_action and indicators.get('username'):
-            trace.append({"action": "execute_quick_action", "type": "disable_user", "target": indicators['username']})
-            action_result = self._call_incident_action("disable_user", indicators['username'])
-        
-        # Analyze indicators if found
-        elif indicators:
-            # Pick the first indicator found
-            if indicators.get('ip'):
-                trace.append({"action": "analyze_threat", "type": "ip", "indicator": indicators['ip']})
-                analysis_result = self._call_threat_agent(indicators['ip'], 'ip')
-            elif indicators.get('domain'):
-                trace.append({"action": "analyze_threat", "type": "domain", "indicator": indicators['domain']})
-                analysis_result = self._call_threat_agent(indicators['domain'], 'domain')
-            elif indicators.get('hash'):
-                trace.append({"action": "analyze_threat", "type": "hash", "indicator": indicators['hash']})
-                analysis_result = self._call_threat_agent(indicators['hash'], 'hash')
-            elif indicators.get('url'):
-                trace.append({"action": "analyze_threat", "type": "url", "indicator": indicators['url']})
-                analysis_result = self._call_threat_agent(indicators['url'], 'url')
-        
-        # --- STEP 3: Format response ---
-        response_text = self._format_response(user_message, analysis_result, action_result, timestamp)
+            # If ADK agent didn't generate a response (empty or error), provide fallback
+            if not response_text or response_text.strip() == "":
+                logger.warning("[ARGUS] ADK agent returned empty response, using fallback")
+                response_text = """### 🛡️ Argus Security Assistant
+
+I couldn't process your request. 
+
+**I can help you with:**
+- **Threat Analysis**: "Analyze 8.8.8.8" or "Check evil-domain.com"
+- **Quick Actions**: "Block IP 10.0.0.1" or "Isolate host WORKSTATION-01"
+- **Incident Response**: "Disable user john.doe"
+
+Please provide an IP address, domain, URL, or file hash to analyze."""
+            
+        except Exception as e:
+            logger.error(f"[ARGUS] Error running ADK agent: {e}", exc_info=True)
+            response_text = f"""### ⚠️ Error Processing Request
+
+An error occurred while processing your message: {str(e)}
+
+Please try again or rephrase your request.
+
+*Argus Security Platform | {timestamp}*"""
+            trace = []
         
         # Store response
         self.session_memory["conversation_history"].append({
