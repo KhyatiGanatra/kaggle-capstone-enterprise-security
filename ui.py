@@ -5,6 +5,7 @@ Chat-first interface with specialized tabs for power users.
 """
 
 import os
+import logging
 import json
 import streamlit as st
 from datetime import datetime
@@ -12,6 +13,23 @@ from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
+
+# Read from secrets OR fallback to info
+level = os.environ.get("STREAMLIT_LOG_LEVEL", "info").upper()
+
+# Force Python logging to use this level
+logging.basicConfig(
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    level=getattr(logging, level, logging.INFO)
+)
+
+# Force Streamlit logger too
+logging.getLogger("streamlit").setLevel(getattr(logging, level, logging.INFO))
+
+import streamlit as st
+st.set_option("logger.level", level.lower())
+
+logging.info("INFO logging is now enabled!")
 # =============================================================================
 # STREAMLIT CLOUD SECRETS SUPPORT
 # =============================================================================
@@ -186,7 +204,7 @@ def get_agents():
         root_agent_service_url = os.getenv("ROOT_AGENT_SVC_URL")
         
         if root_agent_service_url:
-            st.info(f"Connecting to remote Root Agent at: {root_agent_service_url}")
+            st.error(f"Connecting to remote Root Agent at: {root_agent_service_url}")
             root_agent = ADKRootAgentClient(
                 service_url=root_agent_service_url,
                 project_id=project_id
