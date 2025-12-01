@@ -19,8 +19,6 @@ gcloud auth application-default login
 gcloud config set project YOUR_PROJECT_ID
 ```
 
-4. Configure environment variables (see Configuration section)
-
 ## Configuration
 
 1. **Configure Environment Variables**
@@ -152,7 +150,7 @@ All tests use mocking to avoid requiring actual Vertex AI deployment during deve
 
 All production artifacts have been created:
 ✅ Separate agent modules with A2A support
-✅ Vertex AI Agent Registry integration
+✅ Cloud Run integration
 ✅ Comprehensive test suite
 ✅ Deployment scripts and Dockerfiles
 ✅ Production documentation
