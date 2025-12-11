@@ -9,23 +9,56 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "${SCRIPT_DIR}/.." && pwd )"
 cd "${PROJECT_ROOT}"
 
+# Load environment variables from .env file if it exists
+if [ -f "${PROJECT_ROOT}/.env" ]; then
+    echo "Loading environment variables from .env..."
+    set -a
+    source "${PROJECT_ROOT}/.env"
+    set +a
+elif [ -f "${PROJECT_ROOT}/cloud_dev.env" ]; then
+    echo "Loading environment variables from cloud_dev.env..."
+    set -a
+    source "${PROJECT_ROOT}/cloud_dev.env"
+    set +a
+else
+    echo "⚠ Warning: No .env or cloud_dev.env file found. Using environment variables from shell."
+fi
+
 PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-"your-project-id"}
 LOCATION=${VERTEX_AI_LOCATION:-"us-central1"}
 IMAGE_NAME="gcr.io/${PROJECT_ID}/root-orchestrator-agent"
 SERVICE_NAME="root-orchestrator-agent"
+
+# Validate project ID
+if [ "${PROJECT_ID}" = "your-project-id" ] || [ -z "${PROJECT_ID}" ]; then
+    echo "ERROR: GOOGLE_CLOUD_PROJECT is not set or is still the placeholder value."
+    echo "Please set GOOGLE_CLOUD_PROJECT in your .env or cloud_dev.env file."
+    exit 1
+fi
 
 echo "Deploying Root Orchestrator Agent to Vertex AI..."
 echo "Project: ${PROJECT_ID}"
 echo "Location: ${LOCATION}"
 echo "Working directory: ${PROJECT_ROOT}"
 
-# Build Docker image for linux/amd64 (Cloud Run platform)
-echo "Building Docker image for linux/amd64..."
-docker build --platform linux/amd64 -t ${IMAGE_NAME} -f deployment/Dockerfile.root_agent .
+# Build Docker image in Google Cloud Build (no local Docker required)
+echo "Building Docker image in Google Cloud Build..."
+# Create temporary cloudbuild.yaml
+cat > /tmp/cloudbuild-root-agent.yaml <<EOF
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', '${IMAGE_NAME}', '-f', 'deployment/Dockerfile.root_agent', '.']
+images:
+- '${IMAGE_NAME}'
+EOF
 
-# Push to Google Container Registry
-echo "Pushing image to GCR..."
-docker push ${IMAGE_NAME}
+gcloud builds submit \
+  --config /tmp/cloudbuild-root-agent.yaml \
+  --project ${PROJECT_ID} \
+  .
+
+# Clean up
+rm -f /tmp/cloudbuild-root-agent.yaml
 
 # Read agent endpoints from .env.agents file
 ENV_FILE="${PROJECT_ROOT}/.env.agents"

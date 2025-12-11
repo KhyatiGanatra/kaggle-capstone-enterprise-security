@@ -22,15 +22,7 @@ RUN touch shared/__init__.py && touch agents/__init__.py
 # Create ADK web UI agent structure
 RUN mkdir -p adk_web_ui/incident_agent && \
     echo '"""Incident Response Agent for ADK Web UI"""' > adk_web_ui/incident_agent/__init__.py && \
-    cat > adk_web_ui/incident_agent/agent.py << 'EOF'
-import os
-import sys
-sys.path.insert(0, '/app')
-from agents.incident_agent import IncidentResponseAgent
-project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "kaggle-adk-capstone-secmon")
-incident_agent = IncidentResponseAgent(project_id)
-root_agent = incident_agent.agent
-EOF
+    printf 'import os\nimport sys\nsys.path.insert(0, '\''/app'\'')\nfrom agents.incident_agent import IncidentResponseAgent\nproject_id = os.getenv("GOOGLE_CLOUD_PROJECT", "kaggle-adk-capstone-secmon")\nincident_agent = IncidentResponseAgent(project_id)\nroot_agent = incident_agent.agent\n' > adk_web_ui/incident_agent/agent.py
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
