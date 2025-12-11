@@ -174,7 +174,7 @@ class A2AServerFastAPI:
                 handler = self.methods[request_data.method]
                 sig = inspect.signature(handler)
                 params_list = list(sig.parameters.keys())
-                
+
                 # If method has exactly one parameter (bound methods don't include 'self'),
                 # check if it expects a dict and pass params as that single parameter
                 # Otherwise, unpack params as keyword arguments
@@ -186,11 +186,11 @@ class A2AServerFastAPI:
                     param_annotation = param.annotation
                     is_dict_param = (
                         param_annotation == dict or
-                        (hasattr(param_annotation, '__origin__') and 
+                        (hasattr(param_annotation, '__origin__') and
                          param_annotation.__origin__ is dict) or
                         param_name in ['event', 'data', 'payload', 'threat_analysis']
                     )
-                    
+
                     if is_dict_param and isinstance(request_data.params, dict):
                         # Single dict parameter - pass params dict directly
                         result = handler(request_data.params)
@@ -200,13 +200,24 @@ class A2AServerFastAPI:
                 else:
                     # Multiple parameters - unpack as keyword arguments
                     result = handler(**request_data.params)
-                
-                return {
+
+                # DEBUG: Log what the handler returned vs. what we're sending
+                logger.info(f"[A2A-DEBUG] Handler returned type: {type(result)}")
+                if isinstance(result, dict):
+                    logger.info(f"[A2A-DEBUG] Handler result keys: {list(result.keys())}")
+                logger.info(f"[A2A-DEBUG] Handler result preview: {json.dumps(result, indent=2, default=str)[:500]}")
+
+                wrapped_response = {
                     "success": True,
                     "agent": self.agent_name,
                     "method": request_data.method,
                     "result": result
                 }
+
+                logger.info(f"[A2A-DEBUG] Wrapped response keys: {list(wrapped_response.keys())}")
+                logger.info(f"[A2A-DEBUG] Returning wrapped response to client")
+
+                return wrapped_response
                 
             except HTTPException:
                 raise

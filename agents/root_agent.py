@@ -405,7 +405,7 @@ IMPORTANT:
     
     def _call_threat_agent(self, indicator: str, indicator_type: str, context: str = "") -> dict:
         """Call Threat Analysis Agent - via A2A, pre-initialized instance, or new instance"""
-        
+
         # Try A2A first (for distributed deployment)
         if self.threat_agent_endpoint:
             try:
@@ -419,7 +419,21 @@ IMPORTANT:
                 },
                 endpoint=self.threat_agent_endpoint
             )
-                return result
+                # DEBUG: Log the complete response structure
+                logger.info(f"[ROOT-DEBUG] A2A Response Keys: {list(result.keys()) if isinstance(result, dict) else 'not a dict'}")
+                logger.info(f"[ROOT-DEBUG] A2A Response Type: {type(result)}")
+                logger.info(f"[ROOT-DEBUG] A2A Full Response: {json.dumps(result, indent=2, default=str)[:2000]}")  # First 2000 chars
+
+                # A2A server wraps the response in {"success": true, "result": {...}}
+                # We need to unwrap it to get the actual agent response
+                if isinstance(result, dict) and 'result' in result:
+                    logger.info(f"[ROOT-DEBUG] Unwrapping A2A response - extracting 'result' key")
+                    inner_result = result['result']
+                    logger.info(f"[ROOT-DEBUG] Unwrapped response keys: {list(inner_result.keys()) if isinstance(inner_result, dict) else 'not a dict'}")
+                    return inner_result
+                else:
+                    logger.info(f"[ROOT-DEBUG] No 'result' wrapper found, returning response as-is")
+                    return result
             except Exception as e:
                 logger.warning(f"A2A call failed, falling back to direct: {e}")
         
@@ -444,7 +458,7 @@ IMPORTANT:
     
     def _call_incident_agent(self, threat_analysis: dict, context: str = "") -> dict:
         """Call Incident Response Agent - via A2A, pre-initialized instance, or new instance"""
-        
+
         # Try A2A first (for distributed deployment)
         if self.incident_agent_endpoint:
             try:
@@ -457,6 +471,10 @@ IMPORTANT:
                 },
                 endpoint=self.incident_agent_endpoint
             )
+                # Unwrap A2A response (same as threat agent)
+                if isinstance(result, dict) and 'result' in result:
+                    logger.debug(f"[ROOT] Unwrapping A2A response for incident agent")
+                    return result['result']
                 return result
             except Exception as e:
                 logger.warning(f"A2A call failed, falling back to direct: {e}")
@@ -482,7 +500,7 @@ IMPORTANT:
     
     def _call_incident_action(self, action: str, target: str) -> dict:
         """Execute a single incident response action"""
-        
+
         # Try A2A first
         if self.incident_agent_endpoint:
             try:
@@ -495,6 +513,10 @@ IMPORTANT:
                     },
                     endpoint=self.incident_agent_endpoint
                 )
+                # Unwrap A2A response (same as other methods)
+                if isinstance(result, dict) and 'result' in result:
+                    logger.debug(f"[ROOT] Unwrapping A2A response for incident action")
+                    return result['result']
                 return result
             except Exception as e:
                 logger.warning(f"A2A call failed, falling back to direct: {e}")
@@ -697,11 +719,19 @@ Please provide an IP address, domain, URL, or file hash to analyze."""
         
         # Format analysis result
         if analysis_result:
+            # DEBUG: Log what we're trying to format
+            logger.info(f"[ROOT-DEBUG] Formatting analysis_result keys: {list(analysis_result.keys()) if isinstance(analysis_result, dict) else 'not a dict'}")
+            logger.info(f"[ROOT-DEBUG] analysis_result preview: {json.dumps(analysis_result, indent=2, default=str)[:1000]}")
+
             success = analysis_result.get('success', False)
-            
+
             if success:
                 analysis = analysis_result.get('analysis', {})
                 mode = analysis_result.get('mode', {})
+
+                # DEBUG: Log what we extracted
+                logger.info(f"[ROOT-DEBUG] Extracted 'analysis' keys: {list(analysis.keys()) if isinstance(analysis, dict) else 'empty or not dict'}")
+                logger.info(f"[ROOT-DEBUG] Extracted 'mode' keys: {list(mode.keys()) if isinstance(mode, dict) else 'empty or not dict'}")
                 
                 indicator = analysis.get('indicator', 'Unknown')
                 indicator_type = analysis.get('indicator_type', 'unknown')

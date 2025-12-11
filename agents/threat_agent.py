@@ -538,17 +538,25 @@ OUTPUT FORMAT:
                 # Parse VT response
                 analysis_result = self._parse_vt_response(indicator, indicator_type, raw_data)
                 analysis_result["source"] = "VirusTotal GTI"
-                
-                return {
+
+                response = {
                     "success": True,
                     "analysis": analysis_result,
                     "raw_response": str(raw_data)[:1000],
                     "mode": mode_info
                 }
+
+                # DEBUG: Log what we're returning
+                logger.info(f"[THREAT-DEBUG] Returning response with keys: {list(response.keys())}")
+                logger.info(f"[THREAT-DEBUG] analysis keys: {list(analysis_result.keys())}")
+                logger.info(f"[THREAT-DEBUG] Response preview: {json.dumps(response, indent=2, default=str)[:500]}")
+
+                return response
             else:
                 logger.warning(f"Tool call failed: {tool_result.get('error')}")
         
         # Fallback to demo mode response
+        logger.warning(f"[THREAT-DEBUG] Falling back to demo mode for {indicator}")
         analysis_result = {
             "indicator": indicator,
             "indicator_type": indicator_type,
@@ -560,13 +568,18 @@ OUTPUT FORMAT:
             "analyzed_at": datetime.now().isoformat(),
             "recommendations": ["Analysis unavailable - running in demo mode"]
         }
-        
-        return {
+
+        response = {
             "success": True,
             "analysis": analysis_result,
             "raw_response": "",
             "mode": mode_info
         }
+
+        # DEBUG: Log demo mode response
+        logger.info(f"[THREAT-DEBUG] Demo mode response keys: {list(response.keys())}")
+
+        return response
     
     async def close(self):
         """Clean up MCP toolset connection"""
